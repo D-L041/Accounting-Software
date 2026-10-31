@@ -146,6 +146,7 @@ class InvoiceLine(models.Model):
     def save(self, *args, **kwargs):
         if self.invoice_id and self.invoice.status != Invoice.Status.DRAFT:
             raise ValidationError("Only draft invoices can be changed.")
+        self.full_clean()
         return super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
