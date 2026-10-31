@@ -149,9 +149,9 @@ export default function App() {
   },[active,school,periods,cashbookPeriod]);
   useEffect(() => {
     if(active!=="Reports" || !school) return;
-    const periodId = reportPeriod || String(periods[0]?.id || "");
+    const periodId = periods.some(p=>String(p.id)===reportPeriod) ? reportPeriod : String(periods[0]?.id || "");
     if(!periodId) { setTrialBalance(null); return; }
-    if(!reportPeriod) setReportPeriod(periodId);
+    if(reportPeriod!==periodId) setReportPeriod(periodId);
     const route = reportType==="income-expenditure" ? "income-expenditure" : reportType==="balance-sheet" ? "balance-sheet" : "trial-balance";
     api<Row>("/api/schools/" + school.id + "/ledger/reports/" + route + "/?period=" + periodId)
       .then(setTrialBalance).catch(e=>setError(errorText(e)));
