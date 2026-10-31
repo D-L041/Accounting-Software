@@ -155,3 +155,25 @@ class PayrollWorkflowTests(TestCase):
         returned_ids = {item["id"] for item in response.data}
         self.assertEqual(returned_ids, {self.employee.pk})
 
+    def test_other_employee_deductions_are_credited_to_their_liability_account(self):
+        Employee.objects.filter(pk=self.employee.pk).update(monthly_other_deductions=Decimal("1000.00"))
+        created = self.client.post(
+            f"/api/schools/{self.school.pk}/payroll/runs/",
+            {"period": self.period.pk, "payroll_month": "2026-02-01", "pay_date": "2026-02-28"},
+            format="json",
+        )
+        self.assertEqual(created.status_code, 201, created.data)
+        self.assertEqual(created.data["lines"][0]["other_deductions"], "1000.00")
+        self.assertEqual(self.configure_payroll().status_code, 201)
+        posted = self.client.post(
+            f"/api/schools/{self.school.pk}/payroll/runs/{created.data['id']}/post/",
+            {}, format="json",
+        )
+        self.assertEqual(posted.status_code, 200, posted.data)
+        journal = JournalEntry.objects.get(pk=posted.data["journal_entry"])
+        self.assertEqual(journal.lines.get(account=self.other_deductions).credit, Decimal("1000.00"))
+        self.assertEqual(
+            sum(line.debit for line in journal.lines.all()),
+            sum(line.credit for line in journal.lines.all()),
+        )
+
