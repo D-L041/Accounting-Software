@@ -27,6 +27,10 @@ class SchoolViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         return CreateSchoolSerializer if self.action == "create" else SchoolSerializer
 
+    def perform_create(self, serializer):
+        school = serializer.save()
+        record_event(school=school, actor=self.request.user, action="SCHOOL_CREATED", entity_type="School", entity_id=school.pk, summary="Created school workspace")
+
     def perform_update(self, serializer):
         school = serializer.instance
         membership = SchoolMembership.objects.filter(
@@ -76,6 +80,7 @@ class SchoolScopedViewSet(viewsets.ModelViewSet):
 
     def perform_destroy(self, instance):
         self.check_write_role()
+        record_event(school=self.get_school(), actor=self.request.user, action=f"{instance.__class__.__name__.upper()}_DELETED", entity_type=instance.__class__.__name__, entity_id=instance.pk, summary=f"Deleted {instance.__class__.__name__}")
         instance.delete()
 
 
