@@ -13,7 +13,7 @@ from .models import Expense
 def post_expense(expense_id, user):
     expense = Expense.objects.select_for_update().select_related(
         "school", "category__expense_account", "period", "supplier"
-    ).get(pk=expense_id)
+    ).select_for_update(of=("self",)).get(pk=expense_id)
     if expense.status != Expense.Status.DRAFT:
         raise ValidationError("Only draft expenses can be posted.")
     if expense.period.is_locked:
