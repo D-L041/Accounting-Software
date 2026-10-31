@@ -173,7 +173,7 @@ export default function App() {
       setSuccess("Billing ledger mappings saved."); await loadData();
     } catch(e) { setError(errorText(e)); } finally { setBusy(false); }
   }
-\n  async function issueInvoice(id:number) {
+  async function issueInvoice(id:number) {
     setBusy(true); clearMessages();
     try { await api(`${schoolBase}/billing/invoices/${id}/issue/`,{method:"POST",body:JSON.stringify({})}); setSuccess("Invoice issued and posted to the ledger."); await loadData(); }
     catch(e) { setError(errorText(e)); } finally { setBusy(false); }
