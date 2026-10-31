@@ -86,6 +86,8 @@ def create_payroll_run(*, school, period, payroll_month, pay_date, user):
         nssf_base = min(gross, rules["NSSF"].ceiling) if rules["NSSF"].ceiling else gross
         nssf_employee = money(nssf_base * rules["NSSF"].employee_rate)
         nssf_employer = money(nssf_base * rules["NSSF"].employer_rate)
+        # NITA is a flat employer cost per active employee; never deduct it from net pay.
+        nita_levy_employer = money(rules["NITA_LEVY"].fixed_employer)
         shif_employee = max(
             money(gross * rules["SHIF"].employee_rate),
             money(rules["SHIF"].minimum_employee),
@@ -113,6 +115,7 @@ def create_payroll_run(*, school, period, payroll_month, pay_date, user):
             paye=paye, nssf_employee=nssf_employee, shif_employee=shif_employee,
             housing_levy_employee=housing_employee, other_deductions=other_deductions, net_pay=net,
             nssf_employer=nssf_employer, housing_levy_employer=housing_employer,
+            nita_levy_employer=nita_levy_employer,
         )
     record_event(
         school=school, actor=user, action="PAYROLL_RUN_CREATED",
@@ -143,7 +146,10 @@ def post_payroll_run(run_id, user):
     shif = sum((line.shif_employee for line in lines), Decimal("0.00"))
     housing = sum((line.housing_levy_employee + line.housing_levy_employer for line in lines), Decimal("0.00"))
     other_deductions = sum((line.other_deductions for line in lines), Decimal("0.00"))
-    employer_cost = sum((line.nssf_employer + line.housing_levy_employer for line in lines), Decimal("0.00"))
+    nita = sum((line.nita_levy_employer for line in lines), Decimal("0.00"))
+    employer_cost = sum((line.nssf_employer + line.housing_levy_employer + line.nita_levy_employer for line in lines), Decimal("0.00"))
+    if nita > 0 and not settings.nita_payable_account_id:
+        raise ValidationError("Configure a NITA payable liability account before posting payroll.")
     journal = JournalEntry.objects.create(
         school=run.school, reference=f"PAY-{run.payroll_month:%Y%m}",
         description=f"Payroll for {run.payroll_month:%B %Y}",
@@ -161,6 +167,7 @@ def post_payroll_run(run_id, user):
         (settings.shif_payable_account, shif, "SHIF payable"),
         (settings.housing_levy_payable_account, housing, "Employee and employer housing levy payable"),
         (settings.other_deductions_payable_account, other_deductions, "Other employee deductions payable"),
+        (settings.nita_payable_account, nita, "NITA employer industrial training levy payable"),
     ]
     for account, amount, description in credits:
         if amount > 0:
