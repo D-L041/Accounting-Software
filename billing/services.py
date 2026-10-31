@@ -70,6 +70,10 @@ def record_payment(*, school, student, payment_date, method, amount, allocations
     amount = Decimal(str(amount)).quantize(Decimal("0.01"))
     if amount <= 0:
         raise ValidationError("Payment amount must be greater than zero.")
+    if transaction_reference and Payment.objects.filter(
+        school=school, method=method, transaction_reference=transaction_reference
+    ).exists():
+        raise ValidationError("This payment reference has already been recorded for this school.")
     settings = SchoolBillingSettings.objects.select_related("receivables_account", "cash_account", "bank_account", "mpesa_account").filter(school=school).first()
     if settings is None:
         raise ValidationError("Configure school billing accounts before recording payments.")
