@@ -93,6 +93,10 @@ class Migration(migrations.Migration):
         ),
         migrations.AddConstraint(
             model_name="academicyear",
+            constraint=models.UniqueConstraint(condition=models.Q(("is_current", True)), fields=("school",), name="one_current_academic_year_per_school"),
+        ),
+        migrations.AddConstraint(
+            model_name="academicyear",
             constraint=models.CheckConstraint(condition=models.Q(("ends_on__gte", models.F("starts_on"))), name="academic_year_end_after_start"),
         ),
         migrations.AddConstraint(
