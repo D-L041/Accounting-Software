@@ -8,7 +8,7 @@ A green frontend build or successful deployment alone is not sufficient for fina
 - [x] Ledger posting validation strengthened in the working branch.
 - [x] Posted journal and line mutation paths guarded.
 - [x] Production settings reject missing secrets and non-PostgreSQL databases.
-- [x] Latest backend and frontend CI run observed and passed for the verified baseline (re-run required for subsequent commits).
+- [x] CI run #203 passed backend tests, frontend production build and API container build for code commit `5ae6aeb`.
 - [x] Session authentication, role permissions, school-level tenant isolation and owner/admin staff-login management implemented and tested.
 - [x] Student, class/term fee schedules, bulk draft invoicing, invoices, payment allocation and receipt workflows implemented in API and frontend.
 - [x] Supplier directory, expense categories and ledger-posted expense workflow implemented.
@@ -28,7 +28,8 @@ A green frontend build or successful deployment alone is not sufficient for fina
 - [ ] Production API, PostgreSQL and frontend provisioned.
 - [ ] Custom domain connected and HTTPS verified.
 - [ ] End-to-end accounting acceptance tests passed, including trial balance and balance sheet reconciliation.
-- [x] Initial school administrator workflow guide documented.\n- [ ] Secure production administrator handover completed.
+- [x] Initial school administrator workflow guide documented.
+- [ ] Secure production administrator handover completed.
 
 ## Release rule
 
