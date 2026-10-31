@@ -36,6 +36,7 @@ class BillingApiTests(TestCase):
             "lines": [{"fee_item": self.fee.pk, "quantity": "1.00", "unit_amount": "15000.00"}],
         }, format="json")
         self.assertEqual(response.status_code, 201, response.data)
+        self.assertTrue(AuditEvent.objects.filter(action="INVOICE_DRAFT_CREATED", entity_id=str(response.data["id"])).exists())
         return response.data
 
     def test_invoice_issue_posts_double_entry(self):
