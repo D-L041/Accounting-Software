@@ -18,7 +18,7 @@ A green frontend build or successful deployment alone is not sufficient for fina
 - [x] Posted cashbook movement report implemented (period movement only; no opening balance).\n- [x] API Docker image build and database health endpoint verified in CI.
 - [ ] Bank reconciliation and cash flow reporting implemented.
 - [x] Immutable audit events for core financial posting actions and a school-scoped audit log.
-- [ ] Complete CRUD audit coverage and financial approval workflows.\n- [ ] Printable receipt PDF, credit note/refund and verified M-Pesa callback workflows.
+- [ ] Complete CRUD audit coverage and financial approval workflows.\n- [x] Downloadable PDF receipts with school-level access checks.\n- [ ] Credit note/refund and verified M-Pesa callback workflows.
 - [ ] Offline data queue, sync and conflict resolution implemented and tested.
 - [ ] Independent security review and expanded tenant-isolation tests passed.
 - [ ] Backup schedule and a real restore drill verified.
