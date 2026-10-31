@@ -51,7 +51,8 @@ class SupplierViewSet(SchoolExpensesViewSet):
 
     def perform_create(self, serializer):
         self.check_write_role()
-        serializer.save(school=self.get_school())
+        instance = serializer.save(school=self.get_school())
+        record_event(school=self.get_school(), actor=self.request.user, action="SUPPLIER_CREATED", entity_type="Supplier", entity_id=instance.pk, summary="Created supplier record")
 
 
 class ExpenseCategoryViewSet(SchoolExpensesViewSet):
@@ -63,7 +64,8 @@ class ExpenseCategoryViewSet(SchoolExpensesViewSet):
 
     def perform_create(self, serializer):
         self.check_write_role()
-        serializer.save(school=self.get_school())
+        instance = serializer.save(school=self.get_school())
+        record_event(school=self.get_school(), actor=self.request.user, action="EXPENSE_CATEGORY_CREATED", entity_type="ExpenseCategory", entity_id=instance.pk, summary="Created expense category")
 
 
 class ExpenseViewSet(SchoolExpensesViewSet):
@@ -77,7 +79,8 @@ class ExpenseViewSet(SchoolExpensesViewSet):
         self.check_write_role()
         if serializer.instance.status != Expense.Status.DRAFT:
             raise PermissionDenied("Posted expenses are immutable.")
-        serializer.save()
+        instance = serializer.save()
+        record_event(school=self.get_school(), actor=self.request.user, action="EXPENSE_DRAFT_UPDATED", entity_type="Expense", entity_id=instance.pk, summary=f"Updated draft expense {instance.expense_number}")
 
     @action(detail=True, methods=["post"])
     def post_expense(self, request, school_pk=None, pk=None):
