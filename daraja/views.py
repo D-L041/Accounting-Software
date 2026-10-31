@@ -3,6 +3,7 @@ import os
 
 from django.core.exceptions import ImproperlyConfigured, ValidationError as DjangoValidationError
 from django.db import IntegrityError, transaction
+from django.db.models import Q
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework import permissions, status
@@ -106,9 +107,12 @@ class C2BReconcileView(APIView):
 
     def get(self, request, school_pk, notification_pk=None):
         school = self.get_school(request, school_pk)
-        invoice_refs = Invoice.objects.filter(school=school).values_list("invoice_number", flat=True)
+        other_school_refs = Invoice.objects.exclude(school=school).values_list("invoice_number", flat=True)
+        unique_invoice_refs = Invoice.objects.filter(school=school).exclude(
+            invoice_number__in=other_school_refs
+        ).values_list("invoice_number", flat=True)
         notifications = C2BNotification.objects.filter(
-            bill_reference__in=invoice_refs
+            Q(bill_reference__in=unique_invoice_refs) | Q(matched_invoice__school=school)
         ).select_related("matched_invoice", "payment", "reconciled_by")
         if notification_pk is not None:
             notifications = notifications.filter(pk=notification_pk)
