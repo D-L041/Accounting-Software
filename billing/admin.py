@@ -12,7 +12,7 @@ class FeeItemAdmin(admin.ModelAdmin):
 
 @admin.register(SchoolBillingSettings)
 class SchoolBillingSettingsAdmin(admin.ModelAdmin):
-    list_display = ["school", "receivables_account", "cash_account", "bank_account"]
+    list_display = ["school", "receivables_account", "cash_account", "bank_account", "mpesa_account"]
 
 
 class InvoiceLineInline(admin.TabularInline):
