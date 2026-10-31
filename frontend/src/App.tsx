@@ -58,6 +58,7 @@ export default function App() {
   const [active,setActive] = useState("Overview");
   const [menu,setMenu] = useState(false);
   const [loading,setLoading] = useState(true);
+  const [isOnline,setIsOnline] = useState(navigator.onLine);
   const [busy,setBusy] = useState(false);
   const [error,setError] = useState("");
   const [success,setSuccess] = useState("");
@@ -92,6 +93,13 @@ export default function App() {
   }, []);
 
   useEffect(() => { void refreshSession(); }, [refreshSession]);
+  useEffect(() => {
+    const online = () => setIsOnline(true);
+    const offline = () => setIsOnline(false);
+    window.addEventListener("online", online);
+    window.addEventListener("offline", offline);
+    return () => { window.removeEventListener("online", online); window.removeEventListener("offline", offline); };
+  }, []);
 
   const loadData = useCallback(async () => {
     if (!school) return;
