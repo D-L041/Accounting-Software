@@ -14,6 +14,7 @@ import PayrollPanel from "./PayrollPanel";
 import ProcurementPanel from "./ProcurementPanel";
 import BudgetPanel from "./BudgetPanel";
 import { schoolToday } from "./formatters";
+import { discardExpenseDraft, listExpenseDrafts, queueExpenseDraft, syncExpenseDrafts, OfflineExpensePayload } from "./offlineOutbox";
 
 type Row = Record<string, any>;
 const nav = [
@@ -68,6 +69,7 @@ export default function App() {
   const [menu,setMenu] = useState(false);
   const [loading,setLoading] = useState(true);
   const [isOnline,setIsOnline] = useState(navigator.onLine);
+  const [offlineDrafts,setOfflineDrafts] = useState<{idempotencyKey:string;createdAt:string;state:string;lastError?:string}[]>([]);
   const [busy,setBusy] = useState(false);
   const [error,setError] = useState("");
   const [success,setSuccess] = useState("");
@@ -102,6 +104,28 @@ export default function App() {
   const setField = (key:string,value:string) => setForm(old=>({...old,[key]:value}));
   const clearMessages = () => { setError(""); setSuccess(""); };
 
+  const refreshOfflineDrafts = useCallback(async () => {
+    if (!user || !school) { setOfflineDrafts([]); return; }
+    try { setOfflineDrafts(await listExpenseDrafts(user.id, school.id)); }
+    catch (e) { setError(errorText(e)); }
+  }, [user, school]);
+
+  const syncOfflineQueue = useCallback(async () => {
+    if (!user || !school || !navigator.onLine) return;
+    try {
+      const result = await syncExpenseDrafts(user.id, school.id, (idempotencyKey, payload) =>
+        api<{status:string}>(`/api/schools/${school.id}/offline-sync/`, {
+          method: "POST", body: JSON.stringify({ idempotency_key: idempotencyKey, payload }),
+        })
+      );
+      setOfflineDrafts(await listExpenseDrafts(user.id, school.id));
+      if (result.synced > 0) {
+        setSuccess(`${result.synced} offline expense draft(s) synchronised. Review and post them online when ready.`);
+        await loadData();
+      }
+    } catch (e) { setError(errorText(e)); }
+  }, [user, school, loadData]);
+
   const refreshSession = useCallback(async () => {
     try {
       const response = await api<{user:User}>("/api/auth/me/");
@@ -119,6 +143,8 @@ export default function App() {
     window.addEventListener("offline", offline);
     return () => { window.removeEventListener("online", online); window.removeEventListener("offline", offline); };
   }, []);
+  useEffect(() => { void refreshOfflineDrafts(); }, [refreshOfflineDrafts]);
+  useEffect(() => { if (isOnline && user && school) void syncOfflineQueue(); }, [isOnline, user, school, syncOfflineQueue]);
 
   const loadData = useCallback(async () => {
     if (!school) return;
@@ -188,7 +214,8 @@ export default function App() {
     setUser(response.user); setSchool(response.user.schools[0] || null);
   }
   async function handleLogout() {
-    try { await logout(); } finally { setUser(null); setSchool(null); setRows([]); }
+    if (offlineDrafts.length && !window.confirm(`There are ${offlineDrafts.length} unsynchronised offline expense draft(s). They will remain encrypted on this device. Continue signing out?`)) return;
+    try { await logout(); } finally { setUser(null); setSchool(null); setRows([]); setOfflineDrafts([]); }
   }
   async function submitAction(path:string, payload:Row, message:string) {
     if(!navigator.onLine) { setError("You are offline. Transactions are disabled until the secure connection is restored."); return false; }
@@ -313,7 +340,23 @@ export default function App() {
   }
   async function createExpense(event:FormEvent) {
     event.preventDefault();
-    await submitAction(`${schoolBase}/expenses/`,{supplier:form.supplier?Number(form.supplier):null,category:Number(form.category),period:Number(form.period),expense_date:form.expense_date||today,description:form.description,amount:form.amount,payment_method:form.payment_method||"MPESA",reference:form.reference||""},"Draft expense recorded.");
+    const payload: OfflineExpensePayload = {
+      supplier: form.supplier ? Number(form.supplier) : null,
+      category: Number(form.category), period: Number(form.period),
+      expense_date: form.expense_date || today, description: form.description,
+      amount: form.amount, payment_method: form.payment_method || "MPESA",
+      reference: form.reference || "",
+    };
+    if (!navigator.onLine) {
+      if (!user || !school) { setError("Sign in and select a school before saving an offline draft."); return; }
+      try {
+        await queueExpenseDraft(payload, user.id, school.id);
+        setSuccess("Expense saved securely on this device as an offline draft. It has not been posted to the ledger.");
+        setForm({}); await refreshOfflineDrafts();
+      } catch (e) { setError(errorText(e)); }
+      return;
+    }
+    await submitAction(`${schoolBase}/expenses/`,payload,"Draft expense recorded.");
   }
   async function postExpense(id:number) {
     if(!navigator.onLine) { setError("You are offline. Expense posting is disabled until connection is restored."); return; }
