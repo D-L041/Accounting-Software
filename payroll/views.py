@@ -190,7 +190,13 @@ class PayrollRunViewSet(SchoolPayrollViewSet, viewsets.GenericViewSet):
         writer = csv.writer(response)
         writer.writerow(headers)
         for line in run.lines.select_related("employee").order_by("employee__employee_number"):
-            writer.writerow(row_values(line))
+            values = row_values(line)
+            # Prevent spreadsheet formula execution from employee-controlled text fields.
+            safe_values = [
+                "'" + value if isinstance(value, str) and value[:1] in ("=", "+", "-", "@", "\\t", "\\r") else value
+                for value in values
+            ]
+            writer.writerow(safe_values)
         record_event(
             school=run.school, actor=request.user, action="PAYROLL_EXPORT_DOWNLOADED",
             entity_type="PayrollRun", entity_id=run.pk,
