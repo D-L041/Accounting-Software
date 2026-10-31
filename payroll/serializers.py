@@ -43,6 +43,7 @@ class PayrollSettingsSerializer(serializers.ModelSerializer):
             "shif_payable_account": Account.Category.LIABILITY,
             "housing_levy_payable_account": Account.Category.LIABILITY,
             "other_deductions_payable_account": Account.Category.LIABILITY,
+            "nita_payable_account": Account.Category.LIABILITY,
         }
         for field, category in expected.items():
             account = attrs.get(field, getattr(self.instance, field, None))
@@ -61,7 +62,7 @@ class PayrollLineSerializer(serializers.ModelSerializer):
             "id", "employee", "employee_name", "employee_number", "basic_salary",
             "other_earnings", "gross_pay", "taxable_pay", "paye",
             "nssf_employee", "shif_employee", "housing_levy_employee",
-            "other_deductions", "net_pay", "nssf_employer", "housing_levy_employer",
+            "other_deductions", "net_pay", "nssf_employer", "housing_levy_employer", "nita_levy_employer",
         ]
 
 
@@ -100,7 +101,7 @@ class PayrollRuleSerializer(serializers.ModelSerializer):
         model = PayrollRule
         fields = [
             "id", "code", "effective_from", "effective_to", "employee_rate",
-            "employer_rate", "ceiling", "minimum_employee", "fixed_employee",
+            "employer_rate", "ceiling", "minimum_employee", "fixed_employee", "fixed_employer",
             "deductible_for_paye", "created_at",
         ]
         read_only_fields = ["id", "created_at"]
