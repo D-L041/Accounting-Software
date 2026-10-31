@@ -54,6 +54,7 @@ class PayrollRule(models.Model):
         SHIF = "SHIF", "SHIF"
         HOUSING_LEVY = "HOUSING_LEVY", "Affordable Housing Levy"
         PERSONAL_RELIEF = "PERSONAL_RELIEF", "Personal tax relief"
+        NITA_LEVY = "NITA_LEVY", "NITA industrial training levy"
 
     school = models.ForeignKey(School, null=True, blank=True, on_delete=models.CASCADE, related_name="payroll_rules")
     code = models.CharField(max_length=24, choices=Code.choices)
@@ -64,6 +65,7 @@ class PayrollRule(models.Model):
     ceiling = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
     minimum_employee = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
     fixed_employee = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    fixed_employer = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
     deductible_for_paye = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -110,6 +112,7 @@ class PayrollSettings(models.Model):
     shif_payable_account = models.ForeignKey(Account, on_delete=models.PROTECT, related_name="payroll_shif_settings")
     housing_levy_payable_account = models.ForeignKey(Account, on_delete=models.PROTECT, related_name="payroll_housing_settings")
     other_deductions_payable_account = models.ForeignKey(Account, on_delete=models.PROTECT, related_name="payroll_other_deductions_settings")
+    nita_payable_account = models.ForeignKey(Account, null=True, blank=True, on_delete=models.PROTECT, related_name="payroll_nita_settings")
 
     def clean(self):
         super().clean()
@@ -120,6 +123,7 @@ class PayrollSettings(models.Model):
             (self.nssf_payable_account, Account.Category.LIABILITY, "nssf_payable_account"),
             (self.shif_payable_account, Account.Category.LIABILITY, "shif_payable_account"),
             (self.housing_levy_payable_account, Account.Category.LIABILITY, "housing_levy_payable_account"),
+            (self.nita_payable_account, Account.Category.LIABILITY, "nita_payable_account"),
             (self.other_deductions_payable_account, Account.Category.LIABILITY, "other_deductions_payable_account"),
         ]
         errors = {}
@@ -184,7 +188,7 @@ class PayrollRun(models.Model):
 
     @property
     def employer_contributions_total(self):
-        return sum((line.nssf_employer + line.housing_levy_employer for line in self.lines.all()), Decimal("0.00"))
+        return sum((line.nssf_employer + line.housing_levy_employer + line.nita_levy_employer for line in self.lines.all()), Decimal("0.00"))
 
     def save(self, *args, **kwargs):
         if self.pk and PayrollRun.objects.filter(pk=self.pk, status=self.Status.POSTED).exists():
@@ -208,6 +212,7 @@ class PayrollLine(models.Model):
     net_pay = models.DecimalField(max_digits=14, decimal_places=2)
     nssf_employer = models.DecimalField(max_digits=14, decimal_places=2)
     housing_levy_employer = models.DecimalField(max_digits=14, decimal_places=2)
+    nita_levy_employer = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
 
     class Meta:
         constraints = [
