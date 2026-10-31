@@ -51,7 +51,7 @@ class ExpenseSerializer(serializers.ModelSerializer):
         from django.db import transaction
         from django.db.models import Max
         from .models import Expense
-        school = self.context["school"]
+        school = validated_data.pop("school", self.context["school"])
         with transaction.atomic():
             from accounts.models import School
             School.objects.select_for_update().get(pk=school.pk)
