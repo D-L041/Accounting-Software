@@ -184,3 +184,100 @@ class ExpenseBudgetSerializer(serializers.ModelSerializer):
             if value and value.school_id != school.id:
                 raise serializers.ValidationError({field: f"{field.title()} must belong to this school."})
         return attrs
+
+
+from .models import ProcurementApprovalRule, PurchaseOrder, PurchaseOrderApproval, PurchaseOrderLine
+
+
+class PurchaseOrderLineSerializer(serializers.ModelSerializer):
+    line_total = serializers.DecimalField(max_digits=16, decimal_places=2, read_only=True)
+
+    class Meta:
+        model = PurchaseOrderLine
+        fields = ["id", "description", "quantity", "unit_cost", "line_total"]
+        read_only_fields = ["id", "line_total"]
+
+    def validate_quantity(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("Quantity must be greater than zero.")
+        return value
+
+
+class PurchaseOrderSerializer(serializers.ModelSerializer):
+    supplier_name = serializers.CharField(source="supplier.name", read_only=True)
+    period_name = serializers.CharField(source="period.name", read_only=True)
+    total_amount = serializers.DecimalField(max_digits=16, decimal_places=2, read_only=True)
+    lines = PurchaseOrderLineSerializer(many=True)
+
+    class Meta:
+        model = PurchaseOrder
+        fields = ["id", "order_number", "supplier", "supplier_name", "period", "period_name",
+                  "order_date", "expected_date", "description", "status", "total_amount",
+                  "lines", "created_at", "submitted_at"]
+        read_only_fields = ["id", "order_number", "status", "created_at", "submitted_at",
+                            "supplier_name", "period_name", "total_amount"]
+
+    def validate(self, attrs):
+        school = self.context["school"]
+        for field in ("supplier", "period"):
+            value = attrs.get(field, getattr(self.instance, field, None))
+            if value and value.school_id != school.id:
+                raise serializers.ValidationError({field: "Select a record belonging to this school."})
+        if self.instance and self.instance.status != PurchaseOrder.Status.DRAFT:
+            raise serializers.ValidationError("Only draft purchase orders can be edited.")
+        lines = attrs.get("lines")
+        if self.instance is None and (not lines or len(lines) == 0):
+            raise serializers.ValidationError({"lines": "Add at least one order line."})
+        if lines is not None and any(line["unit_cost"] < 0 for line in lines):
+            raise serializers.ValidationError({"lines": "Unit costs cannot be negative."})
+        return attrs
+
+    def create(self, validated_data):
+        from django.db import transaction
+        from accounts.models import School
+        lines = validated_data.pop("lines")
+        school = self.context["school"]
+        with transaction.atomic():
+            School.objects.select_for_update().get(pk=school.pk)
+            last = PurchaseOrder.objects.filter(school=school).order_by("-id").first()
+            sequence = 1
+            if last:
+                try:
+                    sequence = int(last.order_number.rsplit("-", 1)[1]) + 1
+                except (ValueError, IndexError):
+                    raise serializers.ValidationError("Last purchase order number is invalid; contact an administrator.")
+            order = PurchaseOrder.objects.create(
+                school=school, order_number=f"PO-{sequence:06d}",
+                created_by=self.context["request"].user, **validated_data,
+            )
+            for line in lines:
+                PurchaseOrderLine.objects.create(purchase_order=order, **line)
+            return order
+
+    def update(self, instance, validated_data):
+        from django.db import transaction
+        lines = validated_data.pop("lines", None)
+        with transaction.atomic():
+            for field, value in validated_data.items():
+                setattr(instance, field, value)
+            instance.save()
+            if lines is not None:
+                instance.lines.all().delete()
+                for line in lines:
+                    PurchaseOrderLine.objects.create(purchase_order=instance, **line)
+        return instance
+
+
+class ProcurementApprovalRuleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProcurementApprovalRule
+        fields = ["id", "min_amount", "step_number", "approver_role", "is_active"]
+        read_only_fields = ["id"]
+
+    def validate(self, attrs):
+        school = self.context["school"]
+        if self.instance and self.instance.school_id != school.id:
+            raise serializers.ValidationError("Approval rule belongs to another school.")
+        if attrs.get("min_amount", 0) < 0:
+            raise serializers.ValidationError({"min_amount": "Threshold cannot be negative."})
+        return attrs
