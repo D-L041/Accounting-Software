@@ -2,7 +2,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
   LayoutDashboard, GraduationCap, ReceiptText, Wallet, BookOpen, Landmark,
   Users, Settings, Menu, Bell, Search, ArrowUpRight, ArrowDownRight,
-  ShieldCheck, LogOut, Plus, RefreshCw, AlertCircle, CheckCircle2,
+  ShieldCheck, LogOut, Plus, RefreshCw, AlertCircle, CheckCircle2, ClipboardList,
 } from "lucide-react";
 import { api, login, logout, School, User } from "./api";
 
@@ -17,6 +17,7 @@ const nav = [
   { label: "Cashbook & Banks", icon: Landmark, disabled: true },
   { label: "Staff & Payroll", icon: Users, disabled: true },
   { label: "Reports", icon: ArrowUpRight },
+  { label: "Audit Log", icon: ClipboardList },
   { label: "Settings", icon: Settings },
 ];
 const today = new Date().toISOString().slice(0, 10);
@@ -69,6 +70,7 @@ export default function App() {
   const [suppliers,setSuppliers] = useState<Row[]>([]);
   const [billingSettings,setBillingSettings] = useState<Row|null>(null);
   const [trialBalance,setTrialBalance] = useState<Row|null>(null);
+  const [auditRows,setAuditRows] = useState<Row[]>([]);
   const [reportPeriod,setReportPeriod] = useState("");
   const [invoices,setInvoices] = useState<Row[]>([]);
   const [form,setForm] = useState<Record<string,string>>({});
@@ -120,6 +122,10 @@ export default function App() {
   }, [school,schoolBase,active]);
 
   useEffect(() => { if(user && school) void loadData(); }, [user,school,active,loadData]);
+  useEffect(() => {
+    if(active!=="Audit Log" || !school) return;
+    api<Row[]>(`/api/schools/${school.id}/audit/`).then(setAuditRows).catch(e=>setError(errorText(e)));
+  },[active,school]);
   useEffect(() => {
     if(active!=="Reports" || !school) return;
     const periodId = reportPeriod || String(periods[0]?.id || "");
@@ -237,6 +243,8 @@ export default function App() {
     ? [{key:"code",label:"Code"},{key:"name",label:"Account"},{key:"category",label:"Category"},{key:"is_active",label:"Active",format:(v:any)=>v?"Yes":"No"}]
     : active==="Settings"
     ? [{key:"name",label:"Financial period"},{key:"starts_on",label:"Start"},{key:"ends_on",label:"End"},{key:"is_locked",label:"Locked",format:(v:any)=>v?"Yes":"No"}]
+    : active==="Audit Log"
+    ? [{key:"created_at",label:"Date / time"},{key:"actor_name",label:"User"},{key:"action",label:"Action"},{key:"entity_type",label:"Record type"},{key:"entity_id",label:"Record ID"},{key:"summary",label:"Description"}]
     : [{key:"record_type",label:"Type"},{key:"invoice_number",label:"Reference",format:(v:any,row:Row)=>v||row.receipt_number||row.expense_number||"—"},{key:"student_name",label:"Student"},{key:"description",label:"Description"},{key:"amount",label:"Amount",format:(v:any,row:Row)=>money(v||row.total_amount||0,school.currency)},{key:"status",label:"Status"}];
 
   const heading = active==="Overview" ? "Financial overview" : active;
@@ -245,7 +253,7 @@ export default function App() {
     <aside className={menu?"sidebar open":"sidebar"}>
       <div className="brand"><div className="crest"><GraduationCap size={24}/></div><div><strong>PRECIOUS</strong><small>SCHOOLBOOKS</small></div></div>
       <div className="school-tag">{school.name.toUpperCase()} WORKSPACE</div>
-      <nav>{nav.map(({label,icon:Icon,disabled})=><button key={label} disabled={disabled} title={disabled?"Coming in a later release":label} className={active===label?"nav-item selected":"nav-item"} onClick={()=>{setActive(label);setMenu(false);clearMessages();}}><Icon size={18}/><span>{label}</span>{disabled&&<small className="soon">Soon</small>}</button>)}</nav>
+      <nav>{nav.filter(item=>item.label!=="Audit Log"||["OWNER","ADMIN","ACCOUNTANT"].includes(school.role)).map(({label,icon:Icon,disabled})=><button key={label} disabled={disabled} title={disabled?"Coming in a later release":label} className={active===label?"nav-item selected":"nav-item"} onClick={()=>{setActive(label);setMenu(false);clearMessages();}}><Icon size={18}/><span>{label}</span>{disabled&&<small className="soon">Soon</small>}</button>)}</nav>
       <div className="side-foot"><ShieldCheck size={17}/><span>{school.role.toLowerCase()} access</span></div>
     </aside>
     <main className="main">
@@ -285,7 +293,7 @@ export default function App() {
         {active==="General Ledger"&&<div className="notice"><ShieldCheck size={18}/><div><strong>Ledger controls active</strong><span>Accounts are school-scoped. Posted journals are immutable and must balance. Financial periods must be open when posting.</span></div></div>}
         {active==="Settings"&&<div className="notice"><Settings size={18}/><div><strong>Financial periods</strong><span>Only open periods can receive new postings. Period creation and billing-account setup are currently managed through authorised configuration endpoints.</span></div></div>}
         {loading?<div className="table-empty"><RefreshCw className="spin"/> Loading school records…</div>:<div className="data-panel"><div className="panel-heading"><div><h2>{active==="Overview"?"Recent financial activity":active==="Settings"?"Financial periods":active}</h2><p>{active==="Overview"?"Latest invoices, receipts and expenses recorded in this workspace.":"Records belonging to "+school.name+"."}</p></div><button className="secondary" onClick={()=>void loadData()}><RefreshCw size={15}/> Refresh</button></div>
-          {active!=="Reports"&&<DataTable rows={rows} currency={school.currency} empty="No records found. Add your first record using the form above." columns={columns}/>}
+          {active==="Audit Log"&&<DataTable rows={auditRows} currency={school.currency} empty="No audit events have been recorded yet." columns={columns}/>}{active!=="Reports"&&active!=="Audit Log"&&<DataTable rows={rows} currency={school.currency} empty="No records found. Add your first record using the form above." columns={columns}/>}
           {active==="Fees & Invoices"&&<div className="row-actions">{rows.filter(x=>x.status==="DRAFT").map(x=><button key={x.id} className="small-action" disabled={busy} onClick={()=>void issueInvoice(x.id)}>Issue {x.invoice_number}</button>)}</div>}
           {active==="Expenses & Suppliers"&&<div className="row-actions">{rows.filter(x=>x.status==="DRAFT").map(x=><button key={x.id} className="small-action" disabled={busy} onClick={()=>void postExpense(x.id)}>Post {x.expense_number}</button>)}</div>}
         </div>}
