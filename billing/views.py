@@ -91,7 +91,7 @@ class InvoiceViewSet(BillingViewSet):
 
     def perform_create(self, serializer):
         self.check_write_role()
-        instance = serializer.save(school=self.get_school())
+        instance = serializer.save()
         record_event(school=self.get_school(), actor=self.request.user, action="INVOICE_DRAFT_CREATED", entity_type="Invoice", entity_id=instance.pk, summary=f"Created draft invoice {instance.invoice_number}", metadata={"student_id": instance.student_id, "amount": str(instance.total_amount)})
 
     @action(detail=True, methods=["post"])
