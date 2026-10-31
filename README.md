@@ -40,7 +40,7 @@ A multi-school accounting platform for Kenyan primary and secondary schools. The
 
 ## Current delivery status
 
-This is an active development build, **not yet a production-ready accounting application**. The frontend and backend are connected, but production configuration, deployment, offline sync, audit-event capture, payroll, supplier bills/payables, bank reconciliation, advanced reports, approvals, backup/restore drills and full end-to-end acceptance testing remain outstanding. Do not use it for live school financial records until the release checklist is complete.
+This is an active development build, **not yet a production-ready accounting application**. The frontend and backend are connected, but production configuration, deployment, offline sync, broader audit-event coverage, payroll, supplier bills/payables, bank reconciliation, advanced reports, approvals, backup/restore drills and full end-to-end acceptance testing remain outstanding. Do not use it for live school financial records until the release checklist is complete.
 
 See:
 - `docs/IMPLEMENTATION_PLAN.md` for phased delivery.
