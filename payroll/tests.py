@@ -39,6 +39,9 @@ class PayrollWorkflowTests(TestCase):
         self.other_deductions = Account.objects.create(
             school=self.school, code="2150", name="Other Deductions Payable", category="LIABILITY"
         )
+        self.nita = Account.objects.create(
+            school=self.school, code="2160", name="NITA Levy Payable", category="LIABILITY"
+        )
         self.employee = Employee.objects.create(
             school=self.school, employee_number="STF001", first_name="Jane",
             last_name="Teacher", job_title="Teacher", basic_salary="50000.00",
@@ -58,6 +61,8 @@ class PayrollWorkflowTests(TestCase):
                 "shif_payable_account": self.shif.pk,
                 "housing_levy_payable_account": self.housing.pk,
                 "other_deductions_payable_account": self.other_deductions.pk,
+                "nita_payable_account": self.nita.pk,
+                "nita_payable_account": self.nita.pk,
             }, format="json",
         )
 
@@ -74,6 +79,8 @@ class PayrollWorkflowTests(TestCase):
         self.assertEqual(line.shif_employee, Decimal("1375.00"))
         self.assertEqual(line.housing_levy_employee, Decimal("750.00"))
         self.assertEqual(line.housing_levy_employer, Decimal("750.00"))
+        self.assertEqual(line.nita_levy_employer, Decimal("50.00"))
+        self.assertEqual(response.data["employer_contributions_total"], "3800.00")
         self.assertEqual(line.taxable_pay, Decimal("44875.00"))
         self.assertEqual(line.paye, Decimal("5845.85"))
         self.assertEqual(line.net_pay, Decimal("39029.15"))
@@ -90,6 +97,7 @@ class PayrollWorkflowTests(TestCase):
         self.assertEqual(line.nssf_employee, Decimal("6000.00"))
         self.assertEqual(line.shif_employee, Decimal("2750.00"))
         self.assertEqual(line.housing_levy_employee, Decimal("1500.00"))
+        self.assertEqual(line.nita_levy_employer, Decimal("50.00"))
         self.assertEqual(line.taxable_pay, Decimal("89750.00"))
         self.assertEqual(line.paye, Decimal("19308.35"))
         self.assertEqual(line.net_pay, Decimal("70441.65"))
@@ -188,6 +196,7 @@ class PayrollWorkflowTests(TestCase):
         self.assertEqual(posted.status_code, 200, posted.data)
         journal = JournalEntry.objects.get(pk=posted.data["journal_entry"])
         self.assertEqual(journal.lines.get(account=self.other_deductions).credit, Decimal("1000.00"))
+        self.assertEqual(journal.lines.get(account=self.nita).credit, Decimal("50.00"))
         self.assertEqual(
             sum(line.debit for line in journal.lines.all()),
             sum(line.credit for line in journal.lines.all()),
