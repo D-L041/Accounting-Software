@@ -4,6 +4,7 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
 from rest_framework import permissions, status
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from .models import SchoolMembership
@@ -41,6 +42,8 @@ class CsrfView(APIView):
 
 @method_decorator(csrf_protect, name="dispatch")
 class LoginView(APIView):
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "login"
     authentication_classes = []
     permission_classes = [permissions.AllowAny]
 
