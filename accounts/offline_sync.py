@@ -63,9 +63,13 @@ class OfflineExpenseSyncView(APIView):
         if unknown:
             raise ValidationError({"payload": f"Unsupported fields: {', '.join(sorted(unknown))}."})
 
+        # Preserve the original expense payload hash so queued expense retries
+        # created before this extension remain idempotent across deployment.
+        canonical_value = payload if resource_type == "expense" else {
+            "resource_type": resource_type, "payload": payload,
+        }
         canonical = json.dumps(
-            {"resource_type": resource_type, "payload": payload},
-            sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+            canonical_value, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
         )
         payload_hash = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
         existing = OfflineSyncReceipt.objects.filter(
