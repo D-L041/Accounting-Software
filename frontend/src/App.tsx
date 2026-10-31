@@ -12,6 +12,7 @@ import BankReconciliationPanel from "./BankReconciliationPanel";
 import BillingAdjustmentsPanel from "./BillingAdjustmentsPanel";
 import PayrollPanel from "./PayrollPanel";
 import ProcurementPanel from "./ProcurementPanel";
+import BudgetPanel from "./BudgetPanel";
 import { schoolToday } from "./formatters";
 
 type Row = Record<string, any>;
@@ -21,6 +22,7 @@ const nav = [
   { label: "Fees & Invoices", icon: ReceiptText },
   { label: "Payments & Receipts", icon: Wallet },
   { label: "Expenses & Suppliers", icon: ArrowDownRight },
+  { label: "Budgets", icon: ClipboardList },
   { label: "General Ledger", icon: BookOpen },
   { label: "Cashbook & Banks", icon: Landmark },
   { label: "Staff & Payroll", icon: Users },
@@ -543,11 +545,12 @@ export default function App() {
         {active==="Cashbook & Banks"&&<BankReconciliationPanel schoolId={school.id} currency={school.currency} periods={periods} accounts={accounts} canWrite={canWrite} onChanged={()=>void loadData()}/>}
         {active==="Fees & Invoices"&&<BillingAdjustmentsPanel schoolId={school.id} currency={school.currency} periods={periods} accounts={accounts} canWrite={canWrite} onChanged={()=>void loadData()}/>}
         {active==="Staff & Payroll"&&<PayrollPanel schoolId={school.id} currency={school.currency} periods={periods} accounts={accounts} canWrite={canWrite} canAdmin={["OWNER","ADMIN"].includes(school.role)} onChanged={()=>void loadData()}/>}
-        {active==="Expenses & Suppliers"&&<ProcurementPanel schoolId={school.id} currency={school.currency} periods={periods} accounts={accounts} canWrite={canWrite} canApprove={["OWNER","ADMIN"].includes(school.role)} onChanged={()=>void loadData()}/>}\n        {active==="Cashbook & Banks"&&<CashbookPanel periods={periods} periodId={cashbookPeriod} setPeriodId={setCashbookPeriod} report={cashbook} currency={school.currency}/>}\n        {active==="Reports"&&<ReportPanel reportType={reportType} setReportType={setReportType} reportPeriod={reportPeriod} setReportPeriod={setReportPeriod} periods={periods} report={trialBalance} currency={school.currency}/>}
+        {active==="Expenses & Suppliers"&&<ProcurementPanel schoolId={school.id} currency={school.currency} periods={periods} accounts={accounts} canWrite={canWrite} canApprove={["OWNER","ADMIN"].includes(school.role)} onChanged={()=>void loadData()}/>}
+        {active==="Budgets"&&<BudgetPanel schoolId={school.id} currency={school.currency} periods={periods} categories={categories} canWrite={canWrite}/>}\n        {active==="Cashbook & Banks"&&<CashbookPanel periods={periods} periodId={cashbookPeriod} setPeriodId={setCashbookPeriod} report={cashbook} currency={school.currency}/>}\n        {active==="Reports"&&<ReportPanel reportType={reportType} setReportType={setReportType} reportPeriod={reportPeriod} setReportPeriod={setReportPeriod} periods={periods} report={trialBalance} currency={school.currency}/>}
         {active==="General Ledger"&&<div className="notice"><ShieldCheck size={18}/><div><strong>Ledger controls active</strong><span>Accounts are school-scoped. Posted journals are immutable and must balance. Financial periods must be open when posting.</span></div></div>}
         {active==="Settings"&&<div className="notice"><Settings size={18}/><div><strong>Financial periods</strong><span>Only open periods can receive new postings. Period creation and billing-account setup are currently managed through authorised configuration endpoints.</span></div></div>}
-        {loading&&active!=="Cashbook & Banks"?<div className="table-empty"><RefreshCw className="spin"/> Loading school records…</div>:active==="Cashbook & Banks"?null:<div className="data-panel"><div className="panel-heading"><div><h2>{active==="Overview"?"Recent financial activity":active==="Settings"?"Financial periods":active}</h2><p>{active==="Overview"?"Latest invoices, receipts and expenses recorded in this workspace.":"Records belonging to "+school.name+"."}</p></div><button className="secondary" onClick={()=>void loadData()}><RefreshCw size={15}/> Refresh</button></div>
-          {active==="Audit Log"&&<DataTable rows={auditRows} currency={school.currency} empty="No audit events have been recorded yet." columns={columns}/>}{active!=="Reports"&&active!=="Audit Log"&&<DataTable rows={rows} currency={school.currency} empty="No records found. Add your first record using the form above." columns={columns}/>}
+        {loading&&active!=="Cashbook & Banks"&&active!=="Budgets"?<div className="table-empty"><RefreshCw className="spin"/> Loading school records…</div>:active==="Cashbook & Banks"?null:<div className="data-panel"><div className="panel-heading"><div><h2>{active==="Overview"?"Recent financial activity":active==="Settings"?"Financial periods":active}</h2><p>{active==="Overview"?"Latest invoices, receipts and expenses recorded in this workspace.":"Records belonging to "+school.name+"."}</p></div><button className="secondary" onClick={()=>void loadData()}><RefreshCw size={15}/> Refresh</button></div>
+          {active==="Audit Log"&&<DataTable rows={auditRows} currency={school.currency} empty="No audit events have been recorded yet." columns={columns}/>}{active!=="Reports"&&active!=="Audit Log"&&active!=="Budgets"&&<DataTable rows={rows} currency={school.currency} empty="No records found. Add your first record using the form above." columns={columns}/>}
           {active==="Payments & Receipts"&&<div className="row-actions">{rows.map(x=><button key={x.id} className="small-action" onClick={()=>window.open(API_BASE_URL+schoolBase+"/billing/payments/"+x.id+"/receipt/","_blank","noopener,noreferrer")}>Download receipt {x.receipt_number}</button>)}</div>}
           {active==="Fees & Invoices"&&<div className="row-actions">{rows.filter(x=>x.status==="DRAFT").map(x=><button key={x.id} className="small-action" disabled={busy} onClick={()=>void issueInvoice(x.id)}>Issue {x.invoice_number}</button>)}</div>}
           {active==="Expenses & Suppliers"&&<div className="row-actions">{rows.filter(x=>x.status==="DRAFT").map(x=><button key={x.id} className="small-action" disabled={busy} onClick={()=>void postExpense(x.id)}>Post {x.expense_number}</button>)}</div>}
