@@ -16,7 +16,7 @@ const nav = [
   { label: "General Ledger", icon: BookOpen },
   { label: "Cashbook & Banks", icon: Landmark, disabled: true },
   { label: "Staff & Payroll", icon: Users, disabled: true },
-  { label: "Reports", icon: ArrowUpRight, disabled: true },
+  { label: "Reports", icon: ArrowUpRight },
   { label: "Settings", icon: Settings },
 ];
 const today = new Date().toISOString().slice(0, 10);
@@ -68,6 +68,8 @@ export default function App() {
   const [categories,setCategories] = useState<Row[]>([]);
   const [suppliers,setSuppliers] = useState<Row[]>([]);
   const [billingSettings,setBillingSettings] = useState<Row|null>(null);
+  const [trialBalance,setTrialBalance] = useState<Row|null>(null);
+  const [reportPeriod,setReportPeriod] = useState("");
   const [invoices,setInvoices] = useState<Row[]>([]);
   const [form,setForm] = useState<Record<string,string>>({});
   const [newSchool,setNewSchool] = useState({name:"",code:"",address:"",phone:"",email:""});
@@ -118,6 +120,14 @@ export default function App() {
   }, [school,schoolBase,active]);
 
   useEffect(() => { if(user && school) void loadData(); }, [user,school,active,loadData]);
+  useEffect(() => {
+    if(active!=="Reports" || !school) return;
+    const periodId = reportPeriod || String(periods[0]?.id || "");
+    if(!periodId) { setTrialBalance(null); return; }
+    if(!reportPeriod) setReportPeriod(periodId);
+    api<Row>("/api/schools/" + school.id + "/ledger/reports/trial-balance/?period=" + periodId)
+      .then(setTrialBalance).catch(e=>setError(errorText(e)));
+  },[active,school,periods,reportPeriod]);
 
   async function handleLogin(username:string,password:string) {
     const response=await login(username,password);
@@ -250,10 +260,15 @@ export default function App() {
           <form className="entry-panel" onSubmit={createExpenseCategory}><div className="panel-heading"><div><h2>Expense categories</h2><p>Map expense types to expense accounts.</p></div><Plus size={18}/></div><div className="form-grid"><label>Category code<input required value={form.expense_code||""} onChange={e=>setField("expense_code",e.target.value)}/></label><label>Category name<input required value={form.expense_name||""} onChange={e=>setField("expense_name",e.target.value)}/></label><label>Expense account<select required value={form.expense_account||""} onChange={e=>setField("expense_account",e.target.value)}><option value="">Select expense account</option>{accounts.filter(x=>x.category==="EXPENSE"&&x.is_active).map(x=><option value={x.id} key={x.id}>{x.code} — {x.name}</option>)}</select></label></div><button className="primary" disabled={busy}>Add expense category</button></form>
           <form className="entry-panel" onSubmit={saveBillingSettings}><div className="panel-heading"><div><h2>Billing account mappings</h2><p>Choose asset accounts for receivables and collections.</p></div><ShieldCheck size={18}/></div><div className="form-grid">{[["receivables_account","Student receivables"],["cash_account","Cash"],["bank_account","Bank"],["mpesa_account","M-Pesa clearing"]].map(([key,label])=><label key={key}>{label}<select required value={form[key]||String(billingSettings?.[key]||"")} onChange={e=>setField(key,e.target.value)}><option value="">Select asset account</option>{accounts.filter(x=>x.category==="ASSET"&&x.is_active).map(x=><option value={x.id} key={x.id}>{x.code} — {x.name}</option>)}</select></label>)}</div><div className="form-grid"><label>Invoice prefix<input value={form.invoice_prefix||billingSettings?.invoice_prefix||"INV"} onChange={e=>setField("invoice_prefix",e.target.value)}/></label><label>Receipt prefix<input value={form.receipt_prefix||billingSettings?.receipt_prefix||"RCT"} onChange={e=>setField("receipt_prefix",e.target.value)}/></label></div><button className="primary" disabled={busy||accounts.filter(x=>x.category==="ASSET").length<1}>Save billing settings</button></form>
         </div>}
-\n        {active==="General Ledger"&&<div className="notice"><ShieldCheck size={18}/><div><strong>Ledger controls active</strong><span>Accounts are school-scoped. Posted journals are immutable and must balance. Financial periods must be open when posting.</span></div></div>}
+\n
+        {active==="Reports"&&<div className="data-panel"><div className="panel-heading"><div><h2>Trial balance</h2><p>Posted ledger activity only. Draft journals are excluded.</p></div><label className="report-period">Financial period<select value={reportPeriod} onChange={e=>setReportPeriod(e.target.value)}><option value="">Select period</option>{periods.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label></div>
+          {trialBalance?<><div className="metric-grid report-metrics"><div className="metric"><span>Total debits</span><strong>{money(trialBalance.total_debits,school.currency)}</strong></div><div className="metric"><span>Total credits</span><strong>{money(trialBalance.total_credits,school.currency)}</strong></div><div className="metric"><span>Difference</span><strong>{money(trialBalance.difference,school.currency)}</strong></div><div className="metric"><span>Control</span><strong className={trialBalance.is_balanced?"balanced":"unbalanced"}>{trialBalance.is_balanced?"Balanced":"Out of balance"}</strong></div></div><DataTable rows={trialBalance.accounts||[]} currency={school.currency} empty="No posted transactions exist in this period." columns={[{key:"code",label:"Account code"},{key:"name",label:"Account name"},{key:"category",label:"Category"},{key:"debits",label:"Debits",format:(v:any)=>money(v,school.currency)},{key:"credits",label:"Credits",format:(v:any)=>money(v,school.currency)},{key:"net_debit",label:"Net debit",format:(v:any)=>money(v,school.currency)},{key:"net_credit",label:"Net credit",format:(v:any)=>money(v,school.currency)}]}/></>:<div className="table-empty">Create a financial period and post journals to generate the trial balance.</div>}
+        </div>}
+
+        {active==="General Ledger"&&<div className="notice"><ShieldCheck size={18}/><div><strong>Ledger controls active</strong><span>Accounts are school-scoped. Posted journals are immutable and must balance. Financial periods must be open when posting.</span></div></div>}
         {active==="Settings"&&<div className="notice"><Settings size={18}/><div><strong>Financial periods</strong><span>Only open periods can receive new postings. Period creation and billing-account setup are currently managed through authorised configuration endpoints.</span></div></div>}
         {loading?<div className="table-empty"><RefreshCw className="spin"/> Loading school records…</div>:<div className="data-panel"><div className="panel-heading"><div><h2>{active==="Overview"?"Recent financial activity":active==="Settings"?"Financial periods":active}</h2><p>{active==="Overview"?"Latest invoices, receipts and expenses recorded in this workspace.":"Records belonging to "+school.name+"."}</p></div><button className="secondary" onClick={()=>void loadData()}><RefreshCw size={15}/> Refresh</button></div>
-          <DataTable rows={rows} currency={school.currency} empty="No records found. Add your first record using the form above." columns={columns}/>
+          {active!=="Reports"&&<DataTable rows={rows} currency={school.currency} empty="No records found. Add your first record using the form above." columns={columns}/>}
           {active==="Fees & Invoices"&&<div className="row-actions">{rows.filter(x=>x.status==="DRAFT").map(x=><button key={x.id} className="small-action" disabled={busy} onClick={()=>void issueInvoice(x.id)}>Issue {x.invoice_number}</button>)}</div>}
           {active==="Expenses & Suppliers"&&<div className="row-actions">{rows.filter(x=>x.status==="DRAFT").map(x=><button key={x.id} className="small-action" disabled={busy} onClick={()=>void postExpense(x.id)}>Post {x.expense_number}</button>)}</div>}
         </div>}
