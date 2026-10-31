@@ -4,6 +4,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from ledger.models import Account, JournalEntry, JournalLine
+from auditlog.services import record_event
 
 from .models import Invoice, InvoiceLine, Payment, PaymentAllocation, SchoolBillingSettings
 
@@ -55,6 +56,12 @@ def issue_invoice(invoice_id, user):
     invoice.journal_entry = journal
     invoice.status = Invoice.Status.ISSUED
     invoice.save(update_fields=["journal_entry", "status"])
+    record_event(
+        school=invoice.school, actor=user, action="INVOICE_ISSUED",
+        entity_type="Invoice", entity_id=invoice.pk,
+        summary=f"Issued invoice {invoice.invoice_number}",
+        metadata={"invoice_number": invoice.invoice_number, "student_id": invoice.student_id, "amount": str(total), "journal_entry_id": journal.pk},
+    )
     return invoice
 
 
@@ -110,4 +117,10 @@ def record_payment(*, school, student, payment_date, method, amount, allocations
         paid = sum((a.amount for a in invoice.allocations.all()), Decimal("0.00"))
         invoice.status = Invoice.Status.PAID if paid >= invoice.total_amount else Invoice.Status.PART_PAID
         invoice.save(update_fields=["status"])
+    record_event(
+        school=school, actor=user, action="PAYMENT_RECEIVED",
+        entity_type="Payment", entity_id=payment.pk,
+        summary=f"Recorded receipt {receipt}",
+        metadata={"receipt_number": receipt, "student_id": student.pk, "amount": str(amount), "method": method, "journal_entry_id": journal.pk, "allocations": [{"invoice_id": invoice.pk, "amount": str(allocated)} for invoice, allocated in invoices.values()]},
+    )
     return payment
