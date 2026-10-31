@@ -7,9 +7,10 @@ from rest_framework.response import Response
 
 from accounts.models import School, SchoolMembership
 from auditlog.services import record_event
-from .models import Expense, ExpenseCategory, Supplier
-from .serializers import ExpenseCategorySerializer, ExpenseSerializer, SupplierSerializer
+from .models import Expense, ExpenseCategory, Supplier, SupplierBill
+from .serializers import ExpenseCategorySerializer, ExpenseSerializer, SupplierSerializer, SupplierBillSerializer, RecordSupplierBillPaymentSerializer
 from .services import post_expense
+from .payables import approve_supplier_bill, post_supplier_bill, record_supplier_bill_payment, submit_supplier_bill
 
 
 class SchoolExpensesViewSet(viewsets.ModelViewSet):
@@ -91,3 +92,77 @@ class ExpenseViewSet(SchoolExpensesViewSet):
         except DjangoValidationError as exc:
             raise ValidationError(exc.messages) from exc
         return Response(self.get_serializer(expense).data, status=status.HTTP_200_OK)
+
+class SupplierBillViewSet(SchoolExpensesViewSet):
+    serializer_class = SupplierBillSerializer
+    http_method_names = ["get", "post", "patch", "head", "options"]
+
+    def get_queryset(self):
+        return SupplierBill.objects.filter(school=self.get_school()).select_related(
+            "supplier", "category", "period", "payable_account", "created_by",
+            "submitted_by", "approved_by", "journal_entry",
+        ).prefetch_related("payments")
+
+    def perform_create(self, serializer):
+        self.check_write_role()
+        bill = serializer.save()
+        record_event(
+            school=self.get_school(), actor=self.request.user,
+            action="SUPPLIER_BILL_CREATED", entity_type="SupplierBill",
+            entity_id=bill.pk, summary=f"Created draft supplier bill {bill.bill_number}",
+        )
+
+    def perform_update(self, serializer):
+        self.check_write_role()
+        if serializer.instance.status != SupplierBill.Status.DRAFT:
+            raise PermissionDenied("Only draft supplier bills can be edited.")
+        bill = serializer.save()
+        record_event(
+            school=self.get_school(), actor=self.request.user,
+            action="SUPPLIER_BILL_DRAFT_UPDATED", entity_type="SupplierBill",
+            entity_id=bill.pk, summary=f"Updated draft supplier bill {bill.bill_number}",
+        )
+
+    def _run_bill_action(self, request, action_function):
+        self.check_write_role()
+        bill = self.get_object()
+        try:
+            bill = action_function(bill.pk, request.user)
+        except DjangoValidationError as exc:
+            raise ValidationError(exc.messages) from exc
+        return Response(self.get_serializer(bill).data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["post"])
+    def submit(self, request, school_pk=None, pk=None):
+        return self._run_bill_action(request, submit_supplier_bill)
+
+    @action(detail=True, methods=["post"])
+    def approve(self, request, school_pk=None, pk=None):
+        member = SchoolMembership.objects.filter(
+            school=self.get_school(), user=request.user, is_active=True
+        ).first()
+        if not member or member.role not in {SchoolMembership.Role.OWNER, SchoolMembership.Role.ADMIN}:
+            raise PermissionDenied("Only the school owner or administrator can approve supplier bills.")
+        return self._run_bill_action(request, approve_supplier_bill)
+
+    @action(detail=True, methods=["post"])
+    def post_bill(self, request, school_pk=None, pk=None):
+        return self._run_bill_action(request, post_supplier_bill)
+
+    @action(detail=True, methods=["post"], url_path="payments")
+    def record_payment(self, request, school_pk=None, pk=None):
+        self.check_write_role()
+        bill = self.get_object()
+        serializer = RecordSupplierBillPaymentSerializer(
+            data=request.data, context={"school": self.get_school()}
+        )
+        serializer.is_valid(raise_exception=True)
+        try:
+            record_supplier_bill_payment(
+                bill.pk, request.user, **serializer.validated_data
+            )
+        except DjangoValidationError as exc:
+            raise ValidationError(exc.messages) from exc
+        bill.refresh_from_db()
+        return Response(self.get_serializer(bill).data, status=status.HTTP_200_OK)
+
