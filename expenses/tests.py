@@ -49,3 +49,116 @@ class ExpensePostingTests(TestCase):
             "description": "Not permitted", "amount": "100.00", "payment_method": "CASH",
         }, format="json")
         self.assertEqual(response.status_code, 403)
+
+class SupplierBillWorkflowTests(TestCase):
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+        from expenses.models import Supplier
+        self.User = get_user_model()
+        self.creator = self.User.objects.create_user(username="bill-creator", password="test-password")
+        self.approver = self.User.objects.create_user(username="bill-approver", password="test-password")
+        self.school = School.objects.create(name="Payables School", code="payables-school")
+        SchoolMembership.objects.create(school=self.school, user=self.creator, role="ACCOUNTANT")
+        SchoolMembership.objects.create(school=self.school, user=self.approver, role="ADMIN")
+        self.period = FinancialPeriod.objects.create(
+            school=self.school, name="FY26", starts_on="2026-01-01", ends_on="2026-12-31"
+        )
+        self.expense_account = Account.objects.create(
+            school=self.school, code="5100", name="Repairs", category="EXPENSE"
+        )
+        self.payable_account = Account.objects.create(
+            school=self.school, code="2000", name="Trade Payables", category="LIABILITY"
+        )
+        self.bank = Account.objects.create(
+            school=self.school, code="1010", name="Bank", category="ASSET"
+        )
+        self.category = ExpenseCategory.objects.create(
+            school=self.school, code="REPAIRS", name="Repairs", expense_account=self.expense_account
+        )
+        self.supplier = Supplier.objects.create(
+            school=self.school, name="ABC Supplies", tax_pin="P000000001"
+        )
+        self.client = APIClient()
+
+    def create_bill(self):
+        from expenses.models import SupplierBill
+        return SupplierBill.objects.create(
+            school=self.school, supplier=self.supplier, category=self.category,
+            period=self.period, payable_account=self.payable_account,
+            bill_number="BILL-000001", supplier_invoice_number="ABC-INV-001",
+            bill_date="2026-04-01", due_date="2026-04-30",
+            description="Bus spare parts", amount="50000.00", created_by=self.creator,
+        )
+
+    def test_approval_separation_and_posting_create_payable(self):
+        from django.core.exceptions import ValidationError
+        from expenses.models import SupplierBill
+        from expenses.payables import approve_supplier_bill, post_supplier_bill, submit_supplier_bill
+        bill = self.create_bill()
+        submit_supplier_bill(bill.pk, self.creator)
+        with self.assertRaises(ValidationError):
+            approve_supplier_bill(bill.pk, self.creator)
+        approved = approve_supplier_bill(bill.pk, self.approver)
+        self.assertEqual(approved.status, SupplierBill.Status.APPROVED)
+        posted = post_supplier_bill(bill.pk, self.approver)
+        self.assertEqual(posted.status, SupplierBill.Status.POSTED)
+        journal = JournalEntry.objects.get(pk=posted.journal_entry_id)
+        self.assertTrue(journal.posted)
+        self.assertEqual(journal.lines.get(debit__gt=0).account_id, self.expense_account.pk)
+        self.assertEqual(journal.lines.get(credit__gt=0).account_id, self.payable_account.pk)
+
+    def test_partial_and_full_payments_reduce_payable(self):
+        from expenses.models import SupplierBill, SupplierBillPayment
+        from expenses.payables import approve_supplier_bill, post_supplier_bill, record_supplier_bill_payment, submit_supplier_bill
+        bill = self.create_bill()
+        submit_supplier_bill(bill.pk, self.creator)
+        approve_supplier_bill(bill.pk, self.approver)
+        bill = post_supplier_bill(bill.pk, self.approver)
+        first = record_supplier_bill_payment(
+            bill.pk, self.creator, payment_date=__import__("datetime").date(2026, 4, 10),
+            amount="20000.00", payment_method="BANK", payment_account=self.bank,
+            period=self.period, reference="TRX-001",
+        )
+        bill.refresh_from_db()
+        self.assertEqual(bill.status, SupplierBill.Status.PART_PAID)
+        self.assertEqual(bill.balance, __import__("decimal").Decimal("30000.00"))
+        self.assertTrue(first.journal_entry.posted)
+        second = record_supplier_bill_payment(
+            bill.pk, self.creator, payment_date=__import__("datetime").date(2026, 4, 20),
+            amount="30000.00", payment_method="BANK", payment_account=self.bank,
+            period=self.period, reference="TRX-002",
+        )
+        bill.refresh_from_db()
+        self.assertEqual(bill.status, SupplierBill.Status.PAID)
+        self.assertEqual(bill.balance, __import__("decimal").Decimal("0.00"))
+        self.assertEqual(SupplierBillPayment.objects.filter(bill=bill).count(), 2)
+        self.assertTrue(second.journal_entry.posted)
+
+    def test_payment_cannot_exceed_outstanding_balance(self):
+        from django.core.exceptions import ValidationError
+        from expenses.payables import approve_supplier_bill, post_supplier_bill, record_supplier_bill_payment, submit_supplier_bill
+        bill = self.create_bill()
+        submit_supplier_bill(bill.pk, self.creator)
+        approve_supplier_bill(bill.pk, self.approver)
+        post_supplier_bill(bill.pk, self.approver)
+        with self.assertRaises(ValidationError):
+            record_supplier_bill_payment(
+                bill.pk, self.creator, payment_date=__import__("datetime").date(2026, 4, 10),
+                amount="50001.00", payment_method="BANK", payment_account=self.bank,
+                period=self.period,
+            )
+
+    def test_api_requires_owner_or_admin_to_approve_and_scopes_bills(self):
+        from expenses.models import SupplierBill
+        bill = self.create_bill()
+        self.client.force_authenticate(self.creator)
+        base = f"/api/schools/{self.school.pk}/expenses/bills/{bill.pk}/"
+        submitted = self.client.post(base + "submit/", {}, format="json")
+        self.assertEqual(submitted.status_code, 200, submitted.data)
+        denied = self.client.post(base + "approve/", {}, format="json")
+        self.assertEqual(denied.status_code, 403)
+        self.client.force_authenticate(self.approver)
+        approved = self.client.post(base + "approve/", {}, format="json")
+        self.assertEqual(approved.status_code, 200, approved.data)
+        self.assertEqual(approved.data["status"], SupplierBill.Status.APPROVED)
+
