@@ -5,6 +5,7 @@ from django.db import transaction
 
 from billing.models import Payment, SchoolBillingSettings
 from ledger.models import JournalEntry, JournalLine
+from auditlog.services import record_event
 
 from .models import Expense
 
@@ -45,4 +46,10 @@ def post_expense(expense_id, user):
     expense.journal_entry = journal
     expense.status = Expense.Status.POSTED
     expense.save(update_fields=["journal_entry", "status"])
+    record_event(
+        school=expense.school, actor=user, action="EXPENSE_POSTED",
+        entity_type="Expense", entity_id=expense.pk,
+        summary=f"Posted expense {expense.expense_number}",
+        metadata={"expense_number": expense.expense_number, "amount": str(expense.amount), "payment_method": expense.payment_method, "journal_entry_id": journal.pk},
+    )
     return expense
