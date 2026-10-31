@@ -1,8 +1,11 @@
 from django.urls import path
 
-from .views import BillingSettingsViewSet, FeeItemViewSet, InvoiceViewSet, PaymentViewSet
+from .views import BillingSettingsViewSet, FeeItemViewSet, FeeScheduleViewSet, InvoiceViewSet, PaymentViewSet
 
 urlpatterns = [
+    path("fee-schedules/", FeeScheduleViewSet.as_view({"get": "list", "post": "create"}), name="billing-fee-schedules"),
+    path("fee-schedules/<int:pk>/", FeeScheduleViewSet.as_view({"get": "retrieve", "patch": "partial_update"}), name="billing-fee-schedule-detail"),
+    path("fee-schedules/<int:pk>/generate-invoices/", FeeScheduleViewSet.as_view({"post": "generate_invoices"}), name="billing-fee-schedule-generate-invoices"),
     path("fee-items/", FeeItemViewSet.as_view({"get": "list", "post": "create"}), name="billing-fee-items"),
     path("fee-items/<int:pk>/", FeeItemViewSet.as_view({"get": "retrieve", "patch": "partial_update"}), name="billing-fee-item-detail"),
     path("settings/", BillingSettingsViewSet.as_view({"get": "list", "post": "create"}), name="billing-settings"),
