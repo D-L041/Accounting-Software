@@ -370,8 +370,12 @@ class PurchaseOrder(models.Model):
             raise ValidationError(errors)
 
     def save(self, *args, **kwargs):
-        if self.pk and PurchaseOrder.objects.filter(pk=self.pk).exclude(status=self.Status.DRAFT).exists():
-            raise ValidationError("Submitted purchase orders are immutable.")
+        if self.pk:
+            existing = PurchaseOrder.objects.get(pk=self.pk)
+            if existing.status != self.Status.DRAFT:
+                update_fields = set(kwargs.get("update_fields") or [])
+                if not update_fields or not update_fields.issubset({"status", "submitted_at"}):
+                    raise ValidationError("Submitted purchase order details are immutable; only workflow status may change.")
         self.full_clean()
         return super().save(*args, **kwargs)
 
