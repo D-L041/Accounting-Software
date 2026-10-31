@@ -63,6 +63,10 @@ class BillingSettingsViewSet(BillingViewSet):
     def get_queryset(self):
         return SchoolBillingSettings.objects.filter(school=self.get_school())
 
+    def perform_create(self, serializer):
+        self.check_write_role()
+        serializer.save(school=self.get_school())
+
     def update(self, request, *args, **kwargs):
         self.check_write_role()
         return super().update(request, *args, **kwargs)
