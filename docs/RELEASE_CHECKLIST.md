@@ -54,7 +54,7 @@ A green frontend build or successful deployment alone is not sufficient for fina
 - [ ] St Stephen School administrator and accountant acceptance sign-off received.
 - [x] Initial school administrator workflow guide documented.
 - [ ] Secure production administrator handover, access recovery and support ownership completed.
-- [x] CI run [41234808331](https://github.com/D-L041/Accounting-Software/actions/runs/41234808331) for commit `cec53a17` passed: Django checks, migration drift check, migrations, isolated PostgreSQL backup/restore smoke test, backend tests (107 passed), frontend production build, Docker image build and Python/npm dependency audits.
+- [x] CI run [41235062922](https://github.com/D-L041/Accounting-Software/actions/runs/41235062922) for commit `c328d784` passed: Django checks, migration drift check, migrations, isolated PostgreSQL backup/restore smoke test, backend tests (107 passed), frontend production build, Docker image build and Python/npm dependency audits.
 
 ## Release rule
 
