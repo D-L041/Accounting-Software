@@ -8,6 +8,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from accounts.models import School, SchoolMembership
+from auditlog.models import AuditEvent
 from .models import Account, FinancialPeriod, JournalEntry, JournalLine
 from .services import build_trial_balance
 
@@ -150,6 +151,7 @@ class JournalPostingTests(TestCase):
         )
         self.assertEqual(response.status_code, 201, response.data)
         journal_id = response.data["id"]
+        self.assertTrue(AuditEvent.objects.filter(action="JOURNAL_DRAFT_CREATED", entity_id=str(journal_id)).exists())
         posted = client.post(
             f"/api/schools/{self.school.pk}/ledger/journals/{journal_id}/post/",
             {},
@@ -157,6 +159,7 @@ class JournalPostingTests(TestCase):
         )
         self.assertEqual(posted.status_code, 200, posted.data)
         self.assertTrue(posted.data["posted"])
+        self.assertTrue(AuditEvent.objects.filter(action="JOURNAL_POSTED", entity_id=str(journal_id)).exists())
 
     def test_api_rejects_unbalanced_journal_posting(self):
         client = APIClient()
