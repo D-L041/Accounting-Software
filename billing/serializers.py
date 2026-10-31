@@ -24,12 +24,12 @@ class FeeItemSerializer(serializers.ModelSerializer):
 class SchoolBillingSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = SchoolBillingSettings
-        fields = ["id", "receivables_account", "cash_account", "bank_account", "invoice_prefix", "receipt_prefix"]
+        fields = ["id", "receivables_account", "cash_account", "bank_account", "mpesa_account", "invoice_prefix", "receipt_prefix"]
         read_only_fields = ["id"]
 
     def validate(self, attrs):
         school = self.context["school"]
-        for field in ("receivables_account", "cash_account", "bank_account"):
+        for field in ("receivables_account", "cash_account", "bank_account", "mpesa_account"):
             account = attrs.get(field, getattr(self.instance, field, None))
             if account and (account.school_id != school.id or account.category != Account.Category.ASSET):
                 raise serializers.ValidationError({field: "Choose an asset account belonging to this school."})
