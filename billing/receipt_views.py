@@ -1,4 +1,5 @@
 from io import BytesIO
+from xml.sax.saxutils import escape
 
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
@@ -41,7 +42,7 @@ class PaymentReceiptPdfView(APIView):
         styles = getSampleStyleSheet()
         title = ParagraphStyle("ReceiptTitle", parent=styles["Title"], alignment=TA_CENTER, textColor=colors.HexColor("#17324d"))
         story = [
-            Paragraph(school.name, title),
+            Paragraph(escape(school.name), title),
             Paragraph("OFFICIAL SCHOOL FEE RECEIPT", ParagraphStyle("ReceiptHeading", parent=styles["Heading2"], alignment=TA_CENTER)),
             Spacer(1, 8 * mm),
         ]
@@ -86,6 +87,6 @@ class PaymentReceiptPdfView(APIView):
         document.build(story)
         buffer.seek(0)
         return FileResponse(
-            buffer, as_attachment=True, filename=f"{payment.receipt_number}.pdf",
+            buffer, as_attachment=True, filename=f"receipt-{payment.pk}.pdf",
             content_type="application/pdf",
         )
