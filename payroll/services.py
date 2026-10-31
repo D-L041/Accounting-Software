@@ -5,7 +5,7 @@ from django.db import transaction
 from django.db.models import Q
 
 from auditlog.services import record_event
-from ledger.models import JournalEntry, JournalLine
+from ledger.models import FinancialPeriod, JournalEntry, JournalLine
 
 from .models import Employee, PayrollLine, PayrollRule, PayrollRun, PayrollSettings, PayrollTaxBand
 
@@ -56,9 +56,11 @@ def create_payroll_run(*, school, period, payroll_month, pay_date, user):
         raise ValidationError("Cannot create payroll in a locked financial period.")
     if payroll_month.day != 1:
         raise ValidationError("Payroll month must be the first day of the month.")
-    if not (period.starts_on <= payroll_month <= period.ends_on):
+    period_start = FinancialPeriod._meta.get_field("starts_on").to_python(period.starts_on)
+    period_end = FinancialPeriod._meta.get_field("ends_on").to_python(period.ends_on)
+    if not (period_start <= payroll_month <= period_end):
         raise ValidationError("Payroll month must fall within the selected financial period.")
-    if not (period.starts_on <= pay_date <= period.ends_on):
+    if not (period_start <= pay_date <= period_end):
         raise ValidationError("Pay date must fall within the selected financial period.")
     if PayrollRun.objects.filter(school=school, payroll_month=payroll_month).exists():
         raise ValidationError("A payroll run already exists for this school and month.")
