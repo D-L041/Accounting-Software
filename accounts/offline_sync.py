@@ -14,7 +14,7 @@ from auditlog.services import record_event
 
 
 class OfflineExpenseSyncView(APIView):
-    """Accept only expense drafts from the encrypted offline outbox; never post a journal."""
+    """Accept allow-listed non-posting drafts from the encrypted outbox."""
     permission_classes = [permissions.IsAuthenticated]
 
     write_roles = {
@@ -24,8 +24,13 @@ class OfflineExpenseSyncView(APIView):
         SchoolMembership.Role.BURSAR,
     }
     allowed_fields = {
-        "supplier", "category", "period", "expense_date", "description",
-        "amount", "payment_method", "reference",
+        "expense": {
+            "supplier", "category", "period", "expense_date", "description",
+            "amount", "payment_method", "reference",
+        },
+        "purchase_order": {
+            "supplier", "period", "order_date", "expected_date", "description", "lines",
+        },
     }
 
     def post(self, request, school_pk):
@@ -41,67 +46,75 @@ class OfflineExpenseSyncView(APIView):
             school=school, user=request.user, is_active=True
         ).first()
         if not membership or membership.role not in self.write_roles:
-            raise PermissionDenied("Your school role does not permit offline expense capture.")
+            raise PermissionDenied("Your school role does not permit offline draft capture.")
 
-        raw_key = request.data.get("idempotency_key")
         try:
-            idempotency_key = uuid.UUID(str(raw_key))
+            idempotency_key = uuid.UUID(str(request.data.get("idempotency_key")))
         except (ValueError, TypeError, AttributeError):
             raise ValidationError({"idempotency_key": "A valid UUID idempotency key is required."})
 
+        resource_type = request.data.get("resource_type", "expense")
+        if resource_type not in self.allowed_fields:
+            raise ValidationError({"resource_type": "Only expense and purchase-order drafts can be synchronised."})
         payload = request.data.get("payload")
         if not isinstance(payload, dict) or not payload:
-            raise ValidationError({"payload": "A non-empty expense draft object is required."})
-        unknown = set(payload) - self.allowed_fields
+            raise ValidationError({"payload": "A non-empty draft object is required."})
+        unknown = set(payload) - self.allowed_fields[resource_type]
         if unknown:
             raise ValidationError({"payload": f"Unsupported fields: {', '.join(sorted(unknown))}."})
 
-        canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        canonical = json.dumps(
+            {"resource_type": resource_type, "payload": payload},
+            sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+        )
         payload_hash = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
         existing = OfflineSyncReceipt.objects.filter(
             school=school, user=request.user, idempotency_key=idempotency_key
-        ).select_related("expense").first()
+        ).select_related("expense", "purchase_order").first()
         if existing:
             if existing.payload_hash != payload_hash:
                 return Response(
                     {"status": "conflict", "detail": "This idempotency key was already used for different draft data."},
                     status=status.HTTP_409_CONFLICT,
                 )
-            return Response(
-                {"status": "already_applied", "expense_id": existing.expense_id},
-                status=status.HTTP_200_OK,
-            )
+            return Response({
+                "status": "already_applied",
+                "resource_type": resource_type,
+                "expense_id": existing.expense_id,
+                "purchase_order_id": existing.purchase_order_id,
+            }, status=status.HTTP_200_OK)
 
-        from expenses.serializers import ExpenseSerializer
-
+        from expenses.serializers import ExpenseSerializer, PurchaseOrderSerializer
+        serializer_class = ExpenseSerializer if resource_type == "expense" else PurchaseOrderSerializer
         try:
             with transaction.atomic():
-                serializer = ExpenseSerializer(
-                    data=payload,
-                    context={"school": school, "request": request},
+                serializer = serializer_class(
+                    data=payload, context={"school": school, "request": request},
                 )
                 serializer.is_valid(raise_exception=True)
-                expense = serializer.save(school=school)
+                if resource_type == "expense":
+                    instance = serializer.save(school=school)
+                    receipt_fields = {"expense": instance}
+                    entity_type, action = "Expense", "OFFLINE_EXPENSE_DRAFT_SYNCED"
+                    number = instance.expense_number
+                else:
+                    instance = serializer.save()
+                    receipt_fields = {"purchase_order": instance}
+                    entity_type, action = "PurchaseOrder", "OFFLINE_PURCHASE_ORDER_DRAFT_SYNCED"
+                    number = instance.order_number
                 OfflineSyncReceipt.objects.create(
-                    school=school,
-                    user=request.user,
-                    idempotency_key=idempotency_key,
-                    payload_hash=payload_hash,
-                    expense=expense,
+                    school=school, user=request.user, idempotency_key=idempotency_key,
+                    payload_hash=payload_hash, **receipt_fields,
                 )
                 record_event(
-                    school=school,
-                    actor=request.user,
-                    action="OFFLINE_EXPENSE_DRAFT_SYNCED",
-                    entity_type="Expense",
-                    entity_id=expense.pk,
-                    summary=f"Synced offline expense draft {expense.expense_number}",
+                    school=school, actor=request.user, action=action,
+                    entity_type=entity_type, entity_id=instance.pk,
+                    summary=f"Synchronised offline draft {number}",
                 )
         except IntegrityError:
-            # A simultaneous retry may win the unique idempotency constraint.
             existing = OfflineSyncReceipt.objects.filter(
                 school=school, user=request.user, idempotency_key=idempotency_key
-            ).select_related("expense").first()
+            ).select_related("expense", "purchase_order").first()
             if not existing:
                 raise
             if existing.payload_hash != payload_hash:
@@ -109,12 +122,16 @@ class OfflineExpenseSyncView(APIView):
                     {"status": "conflict", "detail": "This idempotency key was already used for different draft data."},
                     status=status.HTTP_409_CONFLICT,
                 )
-            return Response(
-                {"status": "already_applied", "expense_id": existing.expense_id},
-                status=status.HTTP_200_OK,
-            )
+            return Response({
+                "status": "already_applied",
+                "resource_type": resource_type,
+                "expense_id": existing.expense_id,
+                "purchase_order_id": existing.purchase_order_id,
+            }, status=status.HTTP_200_OK)
 
-        return Response(
-            {"status": "accepted", "expense_id": expense.pk, "expense_number": expense.expense_number},
-            status=status.HTTP_201_CREATED,
-        )
+        return Response({
+            "status": "accepted", "resource_type": resource_type,
+            "expense_id": instance.pk if resource_type == "expense" else None,
+            "purchase_order_id": instance.pk if resource_type == "purchase_order" else None,
+            "reference": number,
+        }, status=status.HTTP_201_CREATED)
