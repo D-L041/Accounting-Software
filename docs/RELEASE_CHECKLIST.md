@@ -16,7 +16,8 @@ A green frontend build or successful deployment alone is not sufficient for fina
 - [x] Trial balance, income/expenditure, balance sheet and cashbook reports implemented.
 - [x] Cash-flow movement report now carries forward ledger-derived opening balances and displays closing balances; it is not yet a fully classified cash-flow statement.
 - [x] Bank statement capture, ledger matching, arithmetic validation, reconciliation lock, audit trail and frontend reconciliation screen implemented and tested.
-- [ ] Bank CSV import templates, mapping and automated bank-feed integrations remain outstanding.
+- [x] Bank CSV template download, configurable date/description/amount/reference column mapping and draft statement line import implemented in the frontend.
+- [ ] Automated bank-feed integrations, broader bank-format coverage and independent CSV import acceptance tests remain outstanding.
 - [x] Credit note and payment refund API workflows implemented and tested, including invoice balance adjustments and ledger reversals.
 - [x] Credit note and refund frontend screen implemented.
 - [x] Payroll employee, effective-dated statutory parameters, payroll calculation, posting and account mappings implemented.
