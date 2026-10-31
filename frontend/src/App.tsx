@@ -19,7 +19,7 @@ const nav = [
   { label: "Expenses & Suppliers", icon: ArrowDownRight },
   { label: "General Ledger", icon: BookOpen },
   { label: "Cashbook & Banks", icon: Landmark },
-  { label: "Staff & Payroll", icon: Users, disabled: true },
+  { label: "Staff & Payroll", icon: Users },
   { label: "Reports", icon: ArrowUpRight },
   { label: "Audit Log", icon: ClipboardList },
   { label: "Settings", icon: Settings },
@@ -76,6 +76,9 @@ export default function App() {
   const [categories,setCategories] = useState<Row[]>([]);
   const [suppliers,setSuppliers] = useState<Row[]>([]);
   const [supplierBills,setSupplierBills] = useState<Row[]>([]);
+  const [employees,setEmployees] = useState<Row[]>([]);
+  const [payrollRuns,setPayrollRuns] = useState<Row[]>([]);
+  const [payrollSettings,setPayrollSettings] = useState<Row|null>(null);
   const [billingSettings,setBillingSettings] = useState<Row|null>(null);
   const [trialBalance,setTrialBalance] = useState<Row|null>(null);
   const [auditRows,setAuditRows] = useState<Row[]>([]);
@@ -114,7 +117,7 @@ export default function App() {
     if (!school) return;
     setLoading(true); setError("");
     try {
-      const [studentRows, classroomRows, yearRows, periodRows, accountRows, feeRows, scheduleRows, invoiceRows, paymentRows, expenseRows, categoryRows, supplierRows, billRows, billingRows] = await Promise.all([
+      const [studentRows, classroomRows, yearRows, periodRows, accountRows, feeRows, scheduleRows, invoiceRows, paymentRows, expenseRows, categoryRows, supplierRows, billRows, billingRows, employeeRows, payrollRunRows, payrollSettingsRows] = await Promise.all([
         api<Row[]>(`${schoolBase}/students/`),
         api<Row[]>(`${schoolBase}/classrooms/`),
         api<Row[]>(`${schoolBase}/academic-years/`),
@@ -129,9 +132,12 @@ export default function App() {
         api<Row[]>(`${schoolBase}/expenses/suppliers/`),
         api<Row[]>(`${schoolBase}/expenses/bills/`),
         api<Row[]>(`${schoolBase}/billing/settings/`),
+        api<Row[]>(`${schoolBase}/payroll/employees/`),
+        api<Row[]>(`${schoolBase}/payroll/runs/`),
+        api<Row[]>(`${schoolBase}/payroll/settings/`),
       ]);
       setStudents(studentRows); setClassrooms(classroomRows); setFeeSchedules(scheduleRows); setYears(yearRows); setPeriods(periodRows); setAccounts(accountRows);
-      setFeeItems(feeRows); setInvoices(invoiceRows); setCategories(categoryRows); setSuppliers(supplierRows); setSupplierBills(billRows); setBillingSettings(billingRows[0] || null);
+      setFeeItems(feeRows); setInvoices(invoiceRows); setCategories(categoryRows); setSuppliers(supplierRows); setSupplierBills(billRows); setBillingSettings(billingRows[0] || null); setEmployees(employeeRows); setPayrollRuns(payrollRunRows); setPayrollSettings(payrollSettingsRows[0] || null);
       if (active==="Overview") { const activity: Row[] = [...invoiceRows.slice(0,5).map(x=>({...x,record_type:"Invoice"})), ...paymentRows.slice(0,5).map(x=>({...x,record_type:"Receipt"})), ...expenseRows.slice(0,5).map(x=>({...x,record_type:"Expense"}))]; setRows(activity.sort((a,b)=>String(b.created_at||b.invoice_date||b.payment_date||b.expense_date).localeCompare(String(a.created_at||a.invoice_date||a.payment_date||a.expense_date))).slice(0,8)); }
       else if (active==="Students & Classes") setRows(studentRows);
       else if (active==="Fees & Invoices") setRows(invoiceRows);
@@ -304,6 +310,49 @@ export default function App() {
     },"Supplier bill payment recorded.");
   }
 
+
+
+  async function createEmployee(event:FormEvent) {
+    event.preventDefault();
+    await submitAction(schoolBase + "/payroll/employees/", {
+      employee_number:form.employee_number, first_name:form.employee_first_name,
+      last_name:form.employee_last_name, job_title:form.employee_job_title||"",
+      basic_salary:form.employee_salary, is_resident:form.employee_resident!=="false",
+      hire_date:form.employee_hire_date||today, is_active:true,
+    },"Employee record created.");
+  }
+  async function savePayrollSettings(event:FormEvent) {
+    event.preventDefault();
+    if(!navigator.onLine) { setError("You are offline. Payroll settings cannot be saved."); return; }
+    setBusy(true); clearMessages();
+    const payload={
+      salary_expense_account:Number(form.payroll_salary_expense),
+      net_payable_account:Number(form.payroll_net_payable),
+      paye_payable_account:Number(form.payroll_paye),
+      nssf_payable_account:Number(form.payroll_nssf),
+      shif_payable_account:Number(form.payroll_shif),
+      housing_levy_payable_account:Number(form.payroll_housing),
+    };
+    try {
+      if(payrollSettings?.id) await api(schoolBase + "/payroll/settings/" + payrollSettings.id + "/",{method:"PATCH",body:JSON.stringify(payload)});
+      else await api(schoolBase + "/payroll/settings/",{method:"POST",body:JSON.stringify(payload)});
+      setSuccess("Payroll ledger mappings saved."); await loadData();
+    } catch(e) { setError(errorText(e)); } finally { setBusy(false); }
+  }
+  async function createPayrollRun(event:FormEvent) {
+    event.preventDefault();
+    await submitAction(schoolBase + "/payroll/runs/", {
+      period:Number(form.payroll_period), payroll_month:form.payroll_month+"-01",
+      pay_date:form.payroll_pay_date||today,
+    },"Draft payroll calculated.");
+  }
+  async function postPayrollRun(id:number) {
+    if(!navigator.onLine) { setError("You are offline. Payroll posting requires a secure connection."); return; }
+    setBusy(true); clearMessages();
+    try { await api(schoolBase + "/payroll/runs/" + id + "/post/",{method:"POST",body:JSON.stringify({})}); setSuccess("Payroll posted to the general ledger."); await loadData(); }
+    catch(e) { setError(errorText(e)); } finally { setBusy(false); }
+  }
+
   const totals = useMemo(()=>({
     outstanding: invoices.filter(x=>x.status!=="PAID"&&x.status!=="DRAFT"&&x.status!=="VOID").reduce((n,x)=>n+Number(x.balance||0),0),
     invoiced: invoices.reduce((n,x)=>n+Number(x.total_amount||0),0),
@@ -425,6 +474,57 @@ export default function App() {
 
         {canWrite&&active==="Expenses & Suppliers"&&<form className="entry-panel" onSubmit={createSupplier}><div className="panel-heading"><div><h2>Add supplier</h2><p>Maintain school supplier and vendor details.</p></div><Plus size={18}/></div><div className="form-grid"><label>Supplier name<input required value={form.supplier_name||""} onChange={e=>setField("supplier_name",e.target.value)}/></label><label>Contact person<input value={form.contact_person||""} onChange={e=>setField("contact_person",e.target.value)}/></label><label>Phone<input value={form.supplier_phone||""} onChange={e=>setField("supplier_phone",e.target.value)}/></label><label>Email<input type="email" value={form.supplier_email||""} onChange={e=>setField("supplier_email",e.target.value)}/></label><label>KRA PIN<input value={form.tax_pin||""} onChange={e=>setField("tax_pin",e.target.value)}/></label><label>Address<input value={form.supplier_address||""} onChange={e=>setField("supplier_address",e.target.value)}/></label></div><button className="primary" disabled={busy}>Save supplier</button></form>}
         {canWrite&&active==="Expenses & Suppliers"&&<form className="entry-panel" onSubmit={createExpense}><div className="panel-heading"><div><h2>Record school expense</h2><p>Save as draft, then post when supporting documents are checked.</p></div><Plus size={18}/></div><div className="form-grid"><label>Description<input required value={form.description||""} onChange={e=>setField("description",e.target.value)}/></label><label>Expense category<select required value={form.category||""} onChange={e=>setField("category",e.target.value)}><option value="">Select category</option>{categories.filter(x=>x.is_active).map(x=><option value={x.id} key={x.id}>{x.name}</option>)}</select></label><label>Supplier (optional)<select value={form.supplier||""} onChange={e=>setField("supplier",e.target.value)}><option value="">No supplier selected</option>{suppliers.filter(x=>x.is_active).map(x=><option value={x.id} key={x.id}>{x.name}</option>)}</select></label><label>Financial period<select required value={form.period||""} onChange={e=>setField("period",e.target.value)}><option value="">Select period</option>{periods.filter(x=>!x.is_locked).map(x=><option value={x.id} key={x.id}>{x.name}</option>)}</select></label><label>Amount (KES)<input required type="number" min="0.01" step="0.01" value={form.amount||""} onChange={e=>setField("amount",e.target.value)}/></label><label>Paid through<select value={form.payment_method||"MPESA"} onChange={e=>setField("payment_method",e.target.value)}><option value="MPESA">M-Pesa</option><option value="CASH">Cash</option><option value="BANK">Bank</option></select></label><label>Expense date<input type="date" value={form.expense_date||today} onChange={e=>setField("expense_date",e.target.value)}/></label><label>Reference<input value={form.reference||""} onChange={e=>setField("reference",e.target.value)}/></label></div><button className="primary" disabled={busy||!categories.length||!periods.length}>Save expense draft</button>{(!categories.length||!periods.length)&&<small className="muted">Setup required: configure an expense category and financial period first.</small>}</form>}
+
+
+        {canWrite&&active==="Staff & Payroll"&&<div className="setup-grid">
+          <form className="entry-panel" onSubmit={createEmployee}>
+            <div className="panel-heading"><div><h2>Register employee</h2><p>Maintain staff records and monthly basic salary.</p></div><Users size={18}/></div>
+            <div className="form-grid">
+              <label>Employee number<input required value={form.employee_number||""} onChange={e=>setField("employee_number",e.target.value)}/></label>
+              <label>First name<input required value={form.employee_first_name||""} onChange={e=>setField("employee_first_name",e.target.value)}/></label>
+              <label>Last name<input required value={form.employee_last_name||""} onChange={e=>setField("employee_last_name",e.target.value)}/></label>
+              <label>Job title<input value={form.employee_job_title||""} onChange={e=>setField("employee_job_title",e.target.value)}/></label>
+              <label>Basic salary (KES)<input required type="number" min="0" step="0.01" value={form.employee_salary||""} onChange={e=>setField("employee_salary",e.target.value)}/></label>
+              <label>Hire date<input type="date" value={form.employee_hire_date||today} onChange={e=>setField("employee_hire_date",e.target.value)}/></label>
+              <label>Tax residency<select value={form.employee_resident||"true"} onChange={e=>setField("employee_resident",e.target.value)}><option value="true">Resident</option><option value="false">Non-resident</option></select></label>
+            </div>
+            <button className="primary" disabled={busy}>Save employee</button>
+          </form>
+          <form className="entry-panel" onSubmit={savePayrollSettings}>
+            <div className="panel-heading"><div><h2>Payroll ledger mappings</h2><p>Choose the expense and liability accounts used when posting payroll.</p></div><BookOpen size={18}/></div>
+            <div className="form-grid">
+              <label>Salary expense account<select required value={form.payroll_salary_expense||String(payrollSettings?.salary_expense_account||"")} onChange={e=>setField("payroll_salary_expense",e.target.value)}><option value="">Select expense account</option>{accounts.filter(x=>x.category==="EXPENSE"&&x.is_active).map(x=><option key={x.id} value={x.id}>{x.code} — {x.name}</option>)}</select></label>
+              {[
+                ["payroll_net_payable","Net salaries payable"],["payroll_paye","PAYE payable"],
+                ["payroll_nssf","NSSF payable"],["payroll_shif","SHIF payable"],
+                ["payroll_housing","Housing levy payable"],
+              ].map(([key,label])=><label key={key}>{label}<select required value={form[key]||String(payrollSettings?.[({payroll_net_payable:"net_payable_account",payroll_paye:"paye_payable_account",payroll_nssf:"nssf_payable_account",payroll_shif:"shif_payable_account",payroll_housing:"housing_levy_payable_account"})[key]]||"")} onChange={e=>setField(key,e.target.value)}><option value="">Select liability account</option>{accounts.filter(x=>x.category==="LIABILITY"&&x.is_active).map(x=><option key={x.id} value={x.id}>{x.code} — {x.name}</option>)}</select></label>)}
+            </div>
+            <button className="primary" disabled={busy}>Save payroll mappings</button>
+          </form>
+          <form className="entry-panel" onSubmit={createPayrollRun}>
+            <div className="panel-heading"><div><h2>Calculate monthly payroll</h2><p>Generate a draft using the effective-dated Kenyan statutory rules.</p></div><Plus size={18}/></div>
+            <div className="form-grid">
+              <label>Financial period<select required value={form.payroll_period||""} onChange={e=>setField("payroll_period",e.target.value)}><option value="">Select period</option>{periods.filter(x=>!x.is_locked).map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
+              <label>Payroll month<input required type="month" value={form.payroll_month||""} onChange={e=>setField("payroll_month",e.target.value)}/></label>
+              <label>Pay date<input required type="date" value={form.payroll_pay_date||today} onChange={e=>setField("payroll_pay_date",e.target.value)}/></label>
+            </div>
+            <button className="primary" disabled={busy||!employees.length||!periods.length}>Calculate draft payroll</button>
+            {!employees.length&&<small className="muted">Register active employees before calculating payroll.</small>}
+          </form>
+          <div className="entry-panel">
+            <div className="panel-heading"><div><h2>Employees ({employees.length})</h2><p>Active staff records and basic monthly salaries.</p></div></div>
+            <DataTable rows={employees} columns={[{key:"employee_number",label:"Staff No."},{key:"full_name",label:"Employee"},{key:"job_title",label:"Job title"},{key:"basic_salary",label:"Basic salary",format:(v:any)=>money(v,school.currency)},{key:"is_active",label:"Active",format:(v:any)=>v?"Yes":"No"}]} currency={school.currency} empty="No employees registered."/>
+          </div>
+          <div className="entry-panel">
+            <div className="panel-heading"><div><h2>Payroll runs</h2><p>Review calculated deductions and post approved payroll to the ledger.</p></div></div>
+            <div className="table-wrap"><table><thead><tr>{["Month","Employees","Gross","Net pay","Employer costs","Status","Action"].map(x=><th key={x}>{x}</th>)}</tr></thead><tbody>
+              {payrollRuns.map(run=><tr key={run.id}><td>{String(run.payroll_month).slice(0,7)}</td><td>{run.employee_count}</td><td>{money(run.gross_total,school.currency)}</td><td>{money(run.net_total,school.currency)}</td><td>{money(run.employer_contributions_total,school.currency)}</td><td>{run.status}</td><td>{run.status==="DRAFT"&&<button className="small-action" disabled={busy||!payrollSettings} onClick={()=>void postPayrollRun(run.id)}>Post payroll</button>}</td></tr>)}
+              {!payrollRuns.length&&<tr><td colSpan={7} className="table-empty">No payroll runs calculated.</td></tr>}
+            </tbody></table></div>
+            {!payrollSettings&&<small className="muted">Configure payroll ledger mappings before posting a payroll run.</small>}
+          </div>
+        </div>}
 
         {canWrite&&active==="Settings"&&<div className="setup-grid">
           <form className="entry-panel" onSubmit={createAccount}><div className="panel-heading"><div><h2>Chart of accounts</h2><p>Create ledger accounts for this school.</p></div><Plus size={18}/></div><div className="form-grid"><label>Account code<input required value={form.account_code||""} onChange={e=>setField("account_code",e.target.value)}/></label><label>Account name<input required value={form.account_name||""} onChange={e=>setField("account_name",e.target.value)}/></label><label>Category<select value={form.account_category||"ASSET"} onChange={e=>setField("account_category",e.target.value)}>{["ASSET","LIABILITY","EQUITY","INCOME","EXPENSE"].map(x=><option key={x}>{x}</option>)}</select></label></div><button className="primary" disabled={busy}>Add account</button></form>
