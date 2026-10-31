@@ -1,0 +1,53 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: ststephen
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ststephen"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - run: python manage.py check
+        env:
+          SECRET_KEY: ci-only-not-a-secret
+          DEBUG: "True"
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/ststephen
+      - run: python manage.py migrate --noinput
+        env:
+          SECRET_KEY: ci-only-not-a-secret
+          DEBUG: "True"
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/ststephen
+      - run: pytest
+        env:
+          SECRET_KEY: ci-only-not-a-secret
+          DEBUG: "True"
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/ststephen
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npm run build
