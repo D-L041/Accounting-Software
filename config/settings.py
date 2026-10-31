@@ -88,6 +88,13 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=[])
 CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
 CORS_ALLOW_CREDENTIALS = True
+from corsheaders.defaults import default_headers
+CORS_ALLOW_HEADERS = [*default_headers, "x-csrftoken"]
+
+# Cross-origin frontend sessions require HTTPS and credentialed CORS.
+SESSION_COOKIE_SAMESITE = "None" if not DEBUG else "Lax"
+CSRF_COOKIE_SAMESITE = "None" if not DEBUG else "Lax"
+CSRF_COOKIE_HTTPONLY = False
 
 REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
