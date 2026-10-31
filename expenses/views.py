@@ -7,8 +7,8 @@ from rest_framework.response import Response
 
 from accounts.models import School, SchoolMembership
 from auditlog.services import record_event
-from .models import Expense, ExpenseCategory, Supplier, SupplierBill
-from .serializers import ExpenseCategorySerializer, ExpenseSerializer, SupplierSerializer, SupplierBillSerializer, RecordSupplierBillPaymentSerializer
+from .models import Expense, ExpenseBudget, ExpenseCategory, Supplier, SupplierBill
+from .serializers import ExpenseBudgetSerializer, ExpenseCategorySerializer, ExpenseSerializer, SupplierSerializer, SupplierBillSerializer, RecordSupplierBillPaymentSerializer
 from .services import post_expense
 from .payables import approve_supplier_bill, post_supplier_bill, record_supplier_bill_payment, submit_supplier_bill
 
@@ -166,3 +166,35 @@ class SupplierBillViewSet(SchoolExpensesViewSet):
         bill.refresh_from_db()
         return Response(self.get_serializer(bill).data, status=status.HTTP_200_OK)
 
+
+
+class ExpenseBudgetViewSet(SchoolExpensesViewSet):
+    serializer_class = ExpenseBudgetSerializer
+    http_method_names = ["get", "post", "patch", "head", "options"]
+
+    def get_queryset(self):
+        queryset = ExpenseBudget.objects.filter(school=self.get_school()).select_related(
+            "period", "category", "created_by"
+        )
+        period_id = self.request.query_params.get("period")
+        if period_id:
+            queryset = queryset.filter(period_id=period_id)
+        return queryset
+
+    def perform_create(self, serializer):
+        self.check_write_role()
+        budget = serializer.save(school=self.get_school(), created_by=self.request.user)
+        record_event(
+            school=self.get_school(), actor=self.request.user,
+            action="EXPENSE_BUDGET_CREATED", entity_type="ExpenseBudget",
+            entity_id=budget.pk, summary=f"Created budget for {budget.category.name} in {budget.period.name}",
+        )
+
+    def perform_update(self, serializer):
+        self.check_write_role()
+        budget = serializer.save()
+        record_event(
+            school=self.get_school(), actor=self.request.user,
+            action="EXPENSE_BUDGET_UPDATED", entity_type="ExpenseBudget",
+            entity_id=budget.pk, summary=f"Updated budget for {budget.category.name} in {budget.period.name}",
+        )
