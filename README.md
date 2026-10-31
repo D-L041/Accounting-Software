@@ -62,6 +62,7 @@ Purchase orders and configurable supplier approval limits are not yet implemente
 - `docs/PAYROLL_STATUTORY_REVIEW.md` — Kenyan payroll statutory review and gaps.
 - `docs/OFFLINE_SYNC_DESIGN.md` — safe offline draft-sync boundary.
 - `docs/BACKUP_RESTORE_RUNBOOK.md` — PostgreSQL backup and restore procedure.
+- `docs/ADMIN_HANDOVER.md` — production setup and school administrator handover checklist.
 
 ## Local development
 
