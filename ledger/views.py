@@ -7,8 +7,8 @@ from rest_framework.response import Response
 
 from accounts.models import School, SchoolMembership
 from auditlog.services import record_event
-from .models import Account, FinancialPeriod, JournalEntry
-from .serializers import AccountSerializer, FinancialPeriodSerializer, JournalEntrySerializer
+from .models import Account, BankStatement, BankStatementLine, FinancialPeriod, JournalEntry, JournalLine
+from .serializers import AccountSerializer, BankStatementSerializer, FinancialPeriodSerializer, JournalEntrySerializer
 
 
 class SchoolLedgerViewSet(viewsets.ModelViewSet):
@@ -127,3 +127,64 @@ class JournalEntryViewSet(SchoolLedgerViewSet):
         except DjangoValidationError as exc:
             raise ValidationError(exc.messages) from exc
         return Response(self.get_serializer(entry).data, status=status.HTTP_200_OK)
+
+class BankStatementViewSet(SchoolLedgerViewSet):
+    serializer_class = BankStatementSerializer
+    http_method_names = ["get", "post", "head", "options"]
+
+    def get_queryset(self):
+        return BankStatement.objects.filter(school=self.get_school()).select_related(
+            "account", "period", "uploaded_by"
+        ).prefetch_related("lines__matched_journal_line__entry").order_by("-statement_end", "-id")
+
+    def perform_create(self, serializer):
+        self.check_write_role()
+        statement = serializer.save()
+        record_event(
+            school=self.get_school(), actor=self.request.user, action="BANK_STATEMENT_CREATED",
+            entity_type="BankStatement", entity_id=statement.pk,
+            summary=f"Imported bank statement ending {statement.statement_end}",
+            metadata={"account_id": statement.account_id, "period_id": statement.period_id,
+                      "line_count": statement.lines.count()},
+        )
+
+    @action(detail=True, methods=["post"], url_path="match-line")
+    def match_line(self, request, school_pk=None, pk=None):
+        self.check_write_role()
+        statement = self.get_object()
+        if statement.status != BankStatement.Status.DRAFT:
+            raise PermissionDenied("A reconciled bank statement cannot be changed.")
+        try:
+            statement_line = statement.lines.get(pk=request.data.get("statement_line_id"))
+            journal_line = JournalLine.objects.select_related("entry", "account").get(
+                pk=request.data.get("journal_line_id"),
+                entry__school=self.get_school(),
+                entry__period=statement.period,
+                entry__posted=True,
+                account=statement.account,
+            )
+            statement_line.matched_journal_line = journal_line
+            statement_line.full_clean()
+            statement_line.save(update_fields=["matched_journal_line"])
+        except (BankStatementLine.DoesNotExist, JournalLine.DoesNotExist):
+            raise ValidationError("Select a statement line and a posted ledger line belonging to this school, period and bank account.")
+        except DjangoValidationError as exc:
+            raise ValidationError(exc.messages) from exc
+        record_event(
+            school=self.get_school(), actor=request.user, action="BANK_STATEMENT_LINE_MATCHED",
+            entity_type="BankStatementLine", entity_id=statement_line.pk,
+            summary=f"Matched statement line to journal {journal_line.entry.reference}",
+            metadata={"statement_id": statement.pk, "journal_line_id": journal_line.pk},
+        )
+        return Response(self.get_serializer(statement).data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["post"])
+    def reconcile(self, request, school_pk=None, pk=None):
+        self.check_write_role()
+        statement = self.get_object()
+        try:
+            statement.reconcile(actor=request.user)
+        except DjangoValidationError as exc:
+            raise ValidationError(exc.messages) from exc
+        return Response(self.get_serializer(statement).data, status=status.HTTP_200_OK)
+
