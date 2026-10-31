@@ -8,6 +8,7 @@ import { api, API_BASE_URL, login, logout, School, User } from "./api";
 import ReportPanel from "./ReportPanel";
 import CashbookPanel from "./CashbookPanel";
 import SchoolMembersPanel from "./SchoolMembersPanel";
+import { schoolToday } from "./formatters";
 
 type Row = Record<string, any>;
 const nav = [
@@ -23,7 +24,7 @@ const nav = [
   { label: "Audit Log", icon: ClipboardList },
   { label: "Settings", icon: Settings },
 ];
-const today = new Date().toISOString().slice(0, 10);
+const today = schoolToday();
 const money = (value: unknown, currency = "KES") => new Intl.NumberFormat("en-KE", { style: "currency", currency, maximumFractionDigits: 2 }).format(Number(value || 0));
 const errorText = (error: unknown) => error instanceof Error ? error.message : "Something went wrong. Please try again.";
 
