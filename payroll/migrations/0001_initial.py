@@ -55,6 +55,7 @@ class Migration(migrations.Migration):
                 ("last_name", models.CharField(max_length=80)),
                 ("job_title", models.CharField(blank=True, max_length=120)),
                 ("basic_salary", models.DecimalField(decimal_places=2, max_digits=14)),
+                ("is_resident", models.BooleanField(default=True)),
                 ("hire_date", models.DateField()),
                 ("is_active", models.BooleanField(default=True)),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
