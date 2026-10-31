@@ -6,5 +6,6 @@ urlpatterns = [
     path("callbacks/stk/", stk_callback, name="daraja-stk-callback"),
     path("callbacks/c2b/validation/", c2b_validation, name="daraja-c2b-validation"),
     path("callbacks/c2b/confirmation/", c2b_confirmation, name="daraja-c2b-confirmation"),
+    path("schools/<int:school_pk>/c2b/", C2BReconcileView.as_view(), name="daraja-c2b-review-queue"),
     path("schools/<int:school_pk>/c2b/<int:notification_pk>/reconcile/", C2BReconcileView.as_view(), name="daraja-c2b-reconcile"),
 ]
