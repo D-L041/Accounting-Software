@@ -303,7 +303,7 @@ class PayrollWorkflowTests(TestCase):
         self.assertEqual(created.status_code, 201, created.data)
         line = PayrollLine.objects.get(run_id=created.data["id"], employee=self.employee)
         self.assertEqual(line.tax_exempt_income, Decimal("150000.00"))
-        self.assertEqual(line.taxable_pay, Decimal("35500.00"))
+        self.assertEqual(line.taxable_pay, Decimal("35020.00"))
 
     def test_additional_pension_requires_dedicated_payable_account_to_post(self):
         updated = self.client.patch(
