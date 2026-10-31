@@ -6,12 +6,21 @@ from django.db import models, transaction
 from django.db.models import Q
 from django.utils import timezone
 
+from accounts.models import School
+
 
 class FinancialPeriod(models.Model):
-    name = models.CharField(max_length=80, unique=True)
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="financial_periods")
+    name = models.CharField(max_length=80)
     starts_on = models.DateField()
     ends_on = models.DateField()
     is_locked = models.BooleanField(default=False)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["school", "name"], name="unique_financial_period_per_school"),
+            models.CheckConstraint(condition=Q(ends_on__gte=models.F("starts_on")), name="financial_period_end_after_start"),
+        ]
 
     def clean(self):
         super().clean()
@@ -19,7 +28,7 @@ class FinancialPeriod(models.Model):
             raise ValidationError({"ends_on": "Period end must not precede its start."})
 
     def __str__(self):
-        return self.name
+        return f"{self.school.name} — {self.name}"
 
 
 class Account(models.Model):
@@ -30,10 +39,16 @@ class Account(models.Model):
         INCOME = "INCOME", "Income"
         EXPENSE = "EXPENSE", "Expense"
 
-    code = models.CharField(max_length=20, unique=True)
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="chart_of_accounts")
+    code = models.CharField(max_length=20)
     name = models.CharField(max_length=120)
     category = models.CharField(max_length=12, choices=Category.choices)
     is_active = models.BooleanField(default=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["school", "code"], name="unique_account_code_per_school"),
+        ]
 
     def __str__(self):
         return f"{self.code} — {self.name}"
@@ -52,7 +67,8 @@ class JournalEntryQuerySet(models.QuerySet):
 
 
 class JournalEntry(models.Model):
-    reference = models.CharField(max_length=40, unique=True)
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="journal_entries")
+    reference = models.CharField(max_length=40)
     description = models.CharField(max_length=255)
     entry_date = models.DateField(default=timezone.localdate)
     period = models.ForeignKey(FinancialPeriod, on_delete=models.PROTECT)
@@ -63,12 +79,24 @@ class JournalEntry(models.Model):
 
     objects = JournalEntryQuerySet.as_manager()
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["school", "reference"], name="unique_journal_reference_per_school"),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.period_id and self.school_id and self.period.school_id != self.school_id:
+            raise ValidationError({"period": "Financial period must belong to the same school."})
+
     def post(self):
         """Validate and atomically post a balanced, immutable journal."""
         with transaction.atomic():
-            entry = JournalEntry.objects.select_for_update().select_related("period").get(pk=self.pk)
+            entry = JournalEntry.objects.select_for_update().select_related("period", "school").get(pk=self.pk)
             if entry.posted:
                 raise ValidationError("Journal is already posted.")
+            if entry.period.school_id != entry.school_id:
+                raise ValidationError("Financial period must belong to the same school.")
             if entry.period.is_locked:
                 raise ValidationError("Cannot post into a locked financial period.")
             if not (entry.period.starts_on <= entry.entry_date <= entry.period.ends_on):
@@ -77,6 +105,8 @@ class JournalEntry(models.Model):
             lines = list(entry.lines.select_related("account"))
             if len(lines) < 2:
                 raise ValidationError("A journal requires at least two lines.")
+            if any(line.account.school_id != entry.school_id for line in lines):
+                raise ValidationError("All accounts must belong to the journal's school.")
             if any(not line.account.is_active for line in lines):
                 raise ValidationError("Inactive accounts cannot be used in a new posting.")
 
@@ -98,6 +128,7 @@ class JournalEntry(models.Model):
     def save(self, *args, **kwargs):
         if self.pk and JournalEntry.objects.filter(pk=self.pk, posted=True).exists():
             raise ValidationError("Posted journals are immutable; use a reversal or adjustment.")
+        self.full_clean()
         return super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
@@ -146,6 +177,8 @@ class JournalLine(models.Model):
             raise ValidationError("Journal amounts cannot be negative.")
         if (self.debit > 0) == (self.credit > 0):
             raise ValidationError("A journal line must have exactly one positive side.")
+        if self.entry_id and self.account_id and self.entry.school_id != self.account.school_id:
+            raise ValidationError("Journal account must belong to the same school as the journal.")
 
     def save(self, *args, **kwargs):
         if self.entry_id and JournalEntry.objects.filter(pk=self.entry_id, posted=True).exists():
