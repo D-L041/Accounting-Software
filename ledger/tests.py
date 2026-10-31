@@ -222,14 +222,8 @@ class TrialBalanceApiTests(TestCase):
         self.user = get_user_model().objects.create_user(username="report-user", password="not-for-production")
         self.school = School.objects.create(name="Report School", code="report-school")
         SchoolMembership.objects.create(school=self.school, user=self.user, role="ACCOUNTANT")
-        from billing.models import SchoolBillingSettings
-        self.previous_period = FinancialPeriod.objects.create(school=self.school, name="FY25", starts_on="2025-01-01", ends_on="2025-12-31")
         self.period = FinancialPeriod.objects.create(school=self.school, name="FY26", starts_on="2026-01-01", ends_on="2026-12-31")
         self.cash = Account.objects.create(school=self.school, code="1000", name="Cash", category="ASSET")
-        SchoolBillingSettings.objects.create(
-            school=self.school, receivables_account=self.cash,
-            cash_account=self.cash, bank_account=self.cash, mpesa_account=self.cash,
-        )
         self.income = Account.objects.create(school=self.school, code="4000", name="Fees", category="INCOME")
         self.client = APIClient()
         self.client.force_authenticate(self.user)
@@ -253,11 +247,17 @@ class TrialBalanceApiTests(TestCase):
 
 class FinancialStatementApiTests(TestCase):
     def setUp(self):
+        from billing.models import SchoolBillingSettings
         self.user = get_user_model().objects.create_user(username="statements-user", password="not-for-production")
         self.school = School.objects.create(name="Statement School", code="statement-school")
         SchoolMembership.objects.create(school=self.school, user=self.user, role="ACCOUNTANT")
+        self.previous_period = FinancialPeriod.objects.create(school=self.school, name="FY25", starts_on="2025-01-01", ends_on="2025-12-31")
         self.period = FinancialPeriod.objects.create(school=self.school, name="FY26", starts_on="2026-01-01", ends_on="2026-12-31")
         self.cash = Account.objects.create(school=self.school, code="1000", name="Cash", category="ASSET")
+        SchoolBillingSettings.objects.create(
+            school=self.school, receivables_account=self.cash,
+            cash_account=self.cash, bank_account=self.cash, mpesa_account=self.cash,
+        )
         self.income = Account.objects.create(school=self.school, code="4000", name="Fees", category="INCOME")
         self.expense = Account.objects.create(school=self.school, code="5000", name="Repairs", category="EXPENSE")
         self.client = APIClient()
