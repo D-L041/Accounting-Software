@@ -109,3 +109,59 @@ class SchoolTenantAPITests(TestCase):
         self.assertTrue(AuditEvent.objects.filter(
             school=self.school_a, action="STUDENT_CREATED", entity_id=str(response.data["id"])
         ).exists())
+
+
+class SchoolMemberApiTests(TestCase):
+    def setUp(self):
+        from auditlog.models import AuditEvent
+        self.User = get_user_model()
+        self.owner = self.User.objects.create_user(username="member-owner", password="test-password")
+        self.admin = self.User.objects.create_user(username="member-admin", password="test-password")
+        self.school = School.objects.create(name="Membership School", code="membership-school")
+        SchoolMembership.objects.create(school=self.school, user=self.owner, role=SchoolMembership.Role.OWNER)
+        self.admin_membership = SchoolMembership.objects.create(school=self.school, user=self.admin, role=SchoolMembership.Role.ADMIN)
+        self.client = APIClient()
+        self.audit_model = AuditEvent
+
+    def test_owner_can_create_school_user_with_hashed_password_and_audit_event(self):
+        self.client.force_authenticate(self.owner)
+        response = self.client.post(
+            f"/api/schools/{self.school.pk}/members/",
+            {"username": "new-bursar", "password": "Complex-Test-Password-2026!", "role": "BURSAR", "email": "bursar@example.test"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201, response.data)
+        new_user = self.User.objects.get(username="new-bursar")
+        self.assertTrue(new_user.check_password("Complex-Test-Password-2026!"))
+        self.assertEqual(response.data["role"], "BURSAR")
+        self.assertNotIn("password", response.data)
+        self.assertTrue(self.audit_model.objects.filter(action="SCHOOL_MEMBER_CREATED", entity_id=str(response.data["id"])).exists())
+
+    def test_administrator_cannot_assign_owner_role(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(
+            f"/api/schools/{self.school.pk}/members/",
+            {"username": "bad-owner", "password": "Complex-Test-Password-2026!", "role": "OWNER"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(self.User.objects.filter(username="bad-owner").exists())
+
+    def test_school_must_retain_at_least_one_active_owner(self):
+        self.client.force_authenticate(self.owner)
+        owner_membership = SchoolMembership.objects.get(school=self.school, user=self.owner)
+        response = self.client.patch(
+            f"/api/schools/{self.school.pk}/members/{owner_membership.pk}/",
+            {"is_active": False},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        owner_membership.refresh_from_db()
+        self.assertTrue(owner_membership.is_active)
+
+    def test_viewer_cannot_manage_school_members(self):
+        viewer = self.User.objects.create_user(username="member-viewer", password="test-password")
+        SchoolMembership.objects.create(school=self.school, user=viewer, role=SchoolMembership.Role.VIEWER)
+        self.client.force_authenticate(viewer)
+        response = self.client.get(f"/api/schools/{self.school.pk}/members/")
+        self.assertEqual(response.status_code, 403)
