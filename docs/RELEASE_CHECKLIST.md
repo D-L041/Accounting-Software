@@ -12,7 +12,7 @@ A green frontend build or successful deployment alone is not sufficient for fina
 - [x] Supplier directory, expense categories and ledger-posted expense workflow implemented.
 - [x] Supplier bill submission, owner/admin approval separation, posting to payables and partial/full settlement workflows implemented and tested.
 - [x] Category budgets, budget-versus-actual and variance monitoring implemented in API and frontend.
-- [ ] Purchase orders, supplier approval thresholds, multi-level approval limits and full procurement lifecycle remain outstanding.
+- [x] Purchase orders, supplier approval thresholds and sequential multi-level approval workflow implemented; complete goods-received/invoice matching and independent procurement review remain outstanding.
 - [x] Trial balance, income/expenditure, balance sheet and cashbook reports implemented.
 - [x] Cash-flow movement report now carries forward ledger-derived opening balances and displays closing balances; it is not yet a fully classified cash-flow statement.
 - [x] Bank statement capture, ledger matching, arithmetic validation, reconciliation lock, audit trail and frontend reconciliation screen implemented and tested.
@@ -23,7 +23,7 @@ A green frontend build or successful deployment alone is not sufficient for fina
 - [x] Payroll employee, effective-dated statutory parameters, payroll calculation, posting and account mappings implemented.
 - [x] Payroll statutory review found and corrected the NSSF PAYE deductibility rule; regression tests include January/February 2026 and an independent KES 100,000 benchmark.
 - [x] Effective-dated NITA employer levy (KES 50 per active employee per month), separate liability mapping and employer-cost posting implemented; it is not deducted from employee net pay.
-- [x] Audited CSV payroll register and PAYE, NSSF, SHIF, AHL and NITA schedules implemented; statutory schedules require a posted payroll run.
+- [x] Audited CSV payroll register and PAYE, NSSF, SHIF, AHL, additional PENSION and NITA schedules implemented; statutory schedules require a posted payroll run and are audit-logged.
 - [x] Employee insurance relief, mortgage-interest deduction, post-retirement medical fund, additional registered pension deductions and verified disability tax-exemption certificate support implemented with effective monthly caps and payroll-line snapshots; claim evidence references and owner/admin verification are required.
 - [ ] Full payroll remains incomplete: taxable benefits in kind, official KRA P10/iTax and agency-format exports, independent Kenyan payroll-practitioner sign-off and school parallel-run acceptance remain outstanding. See `docs/PAYROLL_STATUTORY_REVIEW.md`.
 - [x] Immutable audit events for core financial posting actions and a school-scoped audit log.
@@ -34,16 +34,17 @@ A green frontend build or successful deployment alone is not sufficient for fina
 - [x] C2B callback capture/deduplication, school-scoped review queue, exact invoice-reference matching, independent Safaricom statement confirmation, duplicate transaction protection and manual receipt/ledger posting implemented.
 - [ ] Daraja sandbox end-to-end tests, unattended transaction-status verification, school-specific Paybill/shortcode mapping, callback hardening and production onboarding remain outstanding. C2B automatic posting remains disabled.
 - [x] PWA manifest and service worker cache the application shell and static assets only.
-- [x] Encrypted IndexedDB outbox, AES-GCM device encryption, authenticated school-scoped sync endpoint, idempotency receipts and duplicate-safe expense-draft sync implemented; synced expenses remain DRAFT and cannot post through the sync endpoint.
+- [x] Encrypted IndexedDB outbox, AES-GCM device encryption, authenticated school-scoped sync endpoint, idempotency receipts and duplicate-safe expense and purchase-order draft sync implemented; synced records remain DRAFT and cannot post through the sync endpoint.
 - [x] Server-side idempotent purchase-order draft sync added with allow-listed payload validation, school-scoped supplier/period checks, duplicate-key conflict detection and draft-only creation; frontend now encrypts purchase-order drafts in IndexedDB and synchronises them through the typed outbox.
 - [ ] Full conflict-resolution UX (server/local comparison and explicit replacement-draft workflow), cross-device recovery and independent offline security testing remain outstanding.
-- [x] Offline expense draft queue includes visible pending status, manual sync and explicit discard controls.
+- [x] Shared offline draft queue includes visible pending/needs-review status, manual sync, retained 4xx conflicts and explicit discard controls for expense and purchase-order drafts.
 - [ ] Full offline operation across all modules, broader draft capture, reference-data strategy, complete conflict resolution, device-loss recovery and independent offline security testing remain outstanding. Financial posting, payments, payroll approval, reconciliation and M-Pesa remain online-only. See `docs/OFFLINE_SYNC_DESIGN.md`.
-- [x] Automated tenant-isolation tests added for bank statements, supplier bills, payroll employee lists and C2B reconciliation.
+- [x] Automated tenant-isolation tests added for bank statements, supplier bills, payroll employee lists and C2B reconciliation; payroll employee/settings/run reads are restricted to authorised finance roles.
 - [x] CI dependency audits for Python and npm pass with zero known vulnerabilities on the resolved dependency set.
 - [ ] Independent security review, penetration testing and complete tenant-isolation programme remain outstanding.
 - [x] PostgreSQL backup/restore procedure documented in `docs/BACKUP_RESTORE_RUNBOOK.md`.
-- [ ] Managed backup schedule, retention, monitoring and a witnessed restore drill remain outstanding.
+- [x] CI performs a PostgreSQL custom-format dump, restores it to an isolated disposable database and verifies the restored Django migration table.
+- [ ] Managed production backup schedule, retention, monitoring, PITR and a witnessed production restore drill remain outstanding.
 - [ ] Pin frontend dependency versions and commit `package-lock.json`; add a reproducible Python dependency lock before production release.
 - [x] Same-origin Render Docker deployment blueprint prepared; it serves the React PWA and Django API together to preserve first-party session/CSRF cookies. See `docs/RENDER_DEPLOYMENT.md`.
 - [ ] Render service and managed PostgreSQL not yet provisioned; repository owner must approve the estimated monthly charges and connect the Render account.
@@ -53,7 +54,7 @@ A green frontend build or successful deployment alone is not sufficient for fina
 - [ ] St Stephen School administrator and accountant acceptance sign-off received.
 - [x] Initial school administrator workflow guide documented.
 - [ ] Secure production administrator handover, access recovery and support ownership completed.
-- [x] CI run `41232428043` for commit `58a14b8` passed: Django checks, migration drift check, all migrations, backend tests (96 passed), frontend production build, combined frontend/API Docker image build, and Python/npm dependency audits (zero known vulnerabilities).
+- [x] CI run [41234808331](https://github.com/D-L041/Accounting-Software/actions/runs/41234808331) for commit `cec53a17` passed: Django checks, migration drift check, migrations, isolated PostgreSQL backup/restore smoke test, backend tests (107 passed), frontend production build, Docker image build and Python/npm dependency audits.
 
 ## Release rule
 
