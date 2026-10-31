@@ -68,3 +68,8 @@ Purchase orders and configurable supplier approval limits are not yet implemente
 ## Local development
 
 Use Python 3.12+, PostgreSQL 16+ and Node.js 22+. Copy `.env.example` to `.env`, set local-only credentials, install dependencies, run migrations and execute the test suite. Never use real student or payroll data in a development environment.
+
+
+## Hosting and deployment
+
+The recommended low-cost, same-origin Render pilot architecture and deployment checklist are documented in [docs/RENDER_DEPLOYMENT.md](docs/RENDER_DEPLOYMENT.md). The root `render.yaml` is a reviewed deployment blueprint only; it does not provision resources automatically.
