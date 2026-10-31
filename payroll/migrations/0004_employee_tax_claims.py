@@ -94,4 +94,11 @@ class Migration(migrations.Migration):
             model_name="payrollline", name="tax_exempt_income",
             field=models.DecimalField(decimal_places=2, default=Decimal("0.00"), max_digits=14),
         ),
+        migrations.AddField(
+            model_name="payrollsettings", name="additional_pension_payable_account",
+            field=models.ForeignKey(
+                blank=True, null=True, on_delete=django.db.models.deletion.PROTECT,
+                related_name="payroll_pension_settings", to="ledger.account",
+            ),
+        ),
     ]
