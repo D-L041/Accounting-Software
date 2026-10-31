@@ -1,10 +1,12 @@
 from django.urls import path
 
 from .views import AccountViewSet, FinancialPeriodViewSet, JournalEntryViewSet
-from .report_views import TrialBalanceView
+from .report_views import BalanceSheetView, IncomeExpenditureView, TrialBalanceView
 
 urlpatterns = [
     path("reports/trial-balance/", TrialBalanceView.as_view(), name="ledger-trial-balance"),
+    path("reports/income-expenditure/", IncomeExpenditureView.as_view(), name="ledger-income-expenditure"),
+    path("reports/balance-sheet/", BalanceSheetView.as_view(), name="ledger-balance-sheet"),
     path("accounts/", AccountViewSet.as_view({"get": "list", "post": "create"}), name="ledger-accounts"),
     path("accounts/<int:pk>/", AccountViewSet.as_view({"get": "retrieve", "patch": "partial_update"}), name="ledger-account-detail"),
     path("periods/", FinancialPeriodViewSet.as_view({"get": "list", "post": "create"}), name="ledger-periods"),
