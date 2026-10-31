@@ -96,3 +96,16 @@ class SchoolTenantAPITests(TestCase):
         response = self.client.delete(f"/api/schools/{self.school_a.pk}/students/{self.student_a.pk}/")
         self.assertEqual(response.status_code, 403)
         self.assertTrue(Student.objects.filter(pk=self.student_a.pk).exists())
+
+    def test_student_creation_is_audited(self):
+        from auditlog.models import AuditEvent
+        self.client.force_authenticate(self.user_a)
+        response = self.client.post(
+            f"/api/schools/{self.school_a.pk}/students/",
+            {"admission_number": "A009", "first_name": "New", "last_name": "Learner", "admission_date": "2026-01-02"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertTrue(AuditEvent.objects.filter(
+            school=self.school_a, action="STUDENT_CREATED", entity_id=str(response.data["id"])
+        ).exists())
