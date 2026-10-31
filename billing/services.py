@@ -3,10 +3,11 @@ from decimal import Decimal
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
+from accounts.models import Student
 from ledger.models import Account, JournalEntry, JournalLine
 from auditlog.services import record_event
 
-from .models import Invoice, InvoiceLine, Payment, PaymentAllocation, SchoolBillingSettings
+from .models import FeeSchedule, Invoice, InvoiceLine, Payment, PaymentAllocation, SchoolBillingSettings
 
 
 def _next_number(model, school, prefix, field):
@@ -130,3 +131,73 @@ def record_payment(*, school, student, payment_date, method, amount, allocations
         metadata={"receipt_number": receipt, "student_id": student.pk, "amount": str(amount), "method": method, "journal_entry_id": journal.pk, "allocations": [{"invoice_id": invoice.pk, "amount": str(allocated)} for invoice, allocated in invoices.values()]},
     )
     return payment
+
+
+
+@transaction.atomic
+def generate_fee_schedule_invoices(schedule_id, user):
+    schedule = FeeSchedule.objects.select_for_update().select_related(
+        "school", "academic_year", "classroom", "period"
+    ).get(pk=schedule_id)
+    if not schedule.is_active:
+        raise ValidationError("This fee schedule is inactive.")
+    if schedule.period.is_locked:
+        raise ValidationError("Cannot generate invoices into a locked financial period.")
+    if not (schedule.period.starts_on <= schedule.invoice_date <= schedule.period.ends_on):
+        raise ValidationError("Fee schedule invoice date must fall within its financial period.")
+    lines = list(schedule.lines.select_related("fee_item"))
+    if not lines:
+        raise ValidationError("Add at least one fee item before generating invoices.")
+
+    students = list(
+        Student.objects.select_for_update().filter(
+            school=schedule.school,
+            classroom=schedule.classroom,
+            status=Student.Status.ACTIVE,
+        ).order_by("id")
+    )
+    if not students:
+        raise ValidationError("There are no active students in the selected class.")
+
+    existing_student_ids = set(
+        Invoice.objects.filter(school=schedule.school, fee_schedule=schedule)
+        .values_list("student_id", flat=True)
+    )
+    settings = SchoolBillingSettings.objects.filter(school=schedule.school).first()
+    prefix = settings.invoice_prefix if settings else "INV"
+    generated = []
+    skipped = 0
+    for student in students:
+        if student.pk in existing_student_ids:
+            skipped += 1
+            continue
+        number = _next_number(Invoice, schedule.school, prefix, "invoice_number")
+        invoice = Invoice.objects.create(
+            school=schedule.school,
+            student=student,
+            academic_year=schedule.academic_year,
+            period=schedule.period,
+            invoice_number=number,
+            invoice_date=schedule.invoice_date,
+            due_date=schedule.due_date,
+            fee_schedule=schedule,
+            notes=f"Generated from {schedule.term_name} fee schedule",
+        )
+        for line in lines:
+            InvoiceLine.objects.create(
+                invoice=invoice,
+                fee_item=line.fee_item,
+                description=line.fee_item.name,
+                quantity=Decimal("1.00"),
+                unit_amount=line.amount,
+                amount=line.amount,
+            )
+        generated.append(invoice.pk)
+
+    record_event(
+        school=schedule.school, actor=user, action="BULK_INVOICES_GENERATED",
+        entity_type="FeeSchedule", entity_id=schedule.pk,
+        summary=f"Generated {len(generated)} draft invoices for {schedule.classroom} — {schedule.term_name}",
+        metadata={"generated_count": len(generated), "skipped_existing_count": skipped, "invoice_ids": generated},
+    )
+    return {"generated_count": len(generated), "skipped_existing_count": skipped, "invoice_ids": generated}
