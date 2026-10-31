@@ -98,12 +98,18 @@ Use synthetic employees and compare the output independently with a Kenyan payro
 ## I. Offline and security
 
 1. Install the PWA and verify the static application shell opens offline.
-2. Confirm authenticated API responses are not cached.
-3. Confirm all financial writes are blocked offline; do not simulate or approve offline posting.
-4. Run the automated Python/npm dependency audits and tenant-isolation tests.
-5. Complete independent penetration testing, authorization review, backup restore drill and incident-response exercise.
+2. Confirm authenticated API responses are not cached and no pupil, employee, payroll or ledger data is persisted in the offline outbox.
+3. Load approved reference lists while online, disconnect, capture a synthetic expense draft and confirm it is encrypted in IndexedDB and visibly marked as pending.
+4. Reconnect and confirm the sync endpoint creates one DRAFT expense only; confirm no journal entry, payment or receipt is created.
+5. Deliver the same idempotency key twice and confirm the second delivery returns the original result without a duplicate expense.
+6. Reuse an idempotency key with changed payload data and confirm a conflict; substitute a category or period from another school and confirm rejection.
+7. Confirm viewer role, revoked membership and inactive school cannot synchronise drafts.
+8. Confirm the user can inspect and discard a pending local draft, and that signing out warns about unsynchronised drafts.
+9. Confirm invoice issue, payment receipt, refund, payroll approval, bank reconciliation, M-Pesa and journal posting remain blocked offline.
+10. Run the automated Python/npm dependency audits and tenant-isolation tests.
+11. Complete independent penetration testing, authorization review, backup restore drill and incident-response exercise.
 
-**Pass evidence:** offline test log, CI run, security report and witnessed restore report.
+**Pass evidence:** offline test log, duplicate/conflict test results, CI run, security report and witnessed restore report. Full offline operation is not accepted until all modules have their own approved offline design and test coverage.
 
 ## J. Final acceptance and sign-off
 
