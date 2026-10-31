@@ -6,6 +6,42 @@ type Row = Record<string, any>;
 type Props = { schoolId: number; currency: string; periods: Row[]; accounts: Row[]; canWrite: boolean; onChanged?: () => void };
 const today = () => new Date().toISOString().slice(0, 10);
 
+function parseCsv(text: string): string[][] {
+  const rows: string[][] = []; let row: string[] = []; let cell = ""; let quoted = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+    if (char === '"' && quoted && text[i + 1] === '"') { cell += '"'; i += 1; }
+    else if (char === '"') quoted = !quoted;
+    else if (char === "," && !quoted) { row.push(cell.trim()); cell = ""; }
+    else if ((char === "\\n" || char === "\\r") && !quoted) {
+      if (char === "\\r" && text[i + 1] === "\\n") i += 1;
+      row.push(cell.trim()); if (row.some(value => value !== "")) rows.push(row);
+      row = []; cell = "";
+    } else cell += char;
+  }
+  row.push(cell.trim()); if (row.some(value => value !== "")) rows.push(row);
+  if (quoted) throw new Error("CSV contains an unfinished quoted field.");
+  return rows;
+}
+
+function normaliseBankDate(value: string): string {
+  const input = value.trim();
+  if (/^\\d{4}-\\d{2}-\\d{2}$/.test(input)) return input;
+  const match = input.match(/^(\\d{1,2})[\\/.-](\\d{1,2})[\\/.-](\\d{4})$/);
+  if (match) return `${match[3]}-${match[2].padStart(2,"0")}-${match[1].padStart(2,"0")}`;
+  throw new Error(`Unsupported bank statement date: ${value}. Use YYYY-MM-DD or DD/MM/YYYY.`);
+}
+
+function normaliseBankAmount(value: string): string {
+  let input = value.trim().replace(/,/g, "").replace(/KES/gi, "").trim();
+  const debit = /\\bDR\\b/i.test(input) || /^\\(.*\\)$/.test(input);
+  input = input.replace(/\\b(?:DR|CR)\\b/gi, "").replace(/[()\\s]/g, "");
+  if (!/^-?\\d+(?:\\.\\d{1,2})?$/.test(input)) throw new Error(`Invalid bank amount: ${value}`);
+  const amount = Number(input) * (debit && !input.startsWith("-") ? -1 : 1);
+  if (!Number.isFinite(amount) || amount === 0) throw new Error("Bank statement amounts must be non-zero.");
+  return amount.toFixed(2);
+}
+
 export default function BankReconciliationPanel({ schoolId, currency, periods, accounts, canWrite, onChanged }: Props) {
   const base = `/api/schools/${schoolId}/ledger`;
   const [statements, setStatements] = useState<Row[]>([]);
@@ -21,6 +57,9 @@ export default function BankReconciliationPanel({ schoolId, currency, periods, a
   const [lineReference, setLineReference] = useState("");
   const [lineAmount, setLineAmount] = useState("");
   const [lines, setLines] = useState<Row[]>([]);
+  const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
+  const [csvRows, setCsvRows] = useState<string[][]>([]);
+  const [csvMapping, setCsvMapping] = useState({date:"",description:"",amount:"",reference:""});
   const [selected, setSelected] = useState("");
   const [match, setMatch] = useState<Record<string,string>>({});
   const [error, setError] = useState("");
@@ -37,6 +76,34 @@ export default function BankReconciliationPanel({ schoolId, currency, periods, a
     if (!selected && ss[0]) setSelected(String(ss[0].id));
   }
   useEffect(() => { void refresh().catch(e => setError(e.message)); }, [schoolId]);
+  async function loadCsv(file?: File) {
+    if (!file) return;
+    setError("");
+    try {
+      const parsed = parseCsv(await file.text());
+      if (parsed.length < 2) throw new Error("The CSV must contain a header row and at least one transaction.");
+      const headers = parsed[0].map((value,index)=>value || `Column ${index+1}`);
+      const find = (pattern:RegExp) => headers.find(header=>pattern.test(header.toLowerCase())) || "";
+      setCsvHeaders(headers); setCsvRows(parsed.slice(1));
+      setCsvMapping({date:find(/date|posted/),description:find(/description|details|narration|particular/),amount:find(/amount|value/),reference:find(/reference|ref|transaction|cheque/)});
+    } catch(err) { setError(err instanceof Error?err.message:"Could not read the CSV file."); }
+  }
+  function applyCsvRows() {
+    try {
+      if (!csvMapping.date || !csvMapping.description || !csvMapping.amount) throw new Error("Map date, description and amount columns before importing.");
+      const index = (name:string) => csvHeaders.indexOf(name);
+      const imported = csvRows.map((row)=>({
+        transaction_date:normaliseBankDate(row[index(csvMapping.date)]||""),
+        description:(row[index(csvMapping.description)]||"").slice(0,255),
+        reference:csvMapping.reference?(row[index(csvMapping.reference)]||"").slice(0,100):"",
+        amount:normaliseBankAmount(row[index(csvMapping.amount)]||""),
+      }));
+      if (imported.some(line=>!line.description)) throw new Error("Every imported bank transaction needs a description.");
+      setLines(old=>[...old,...imported]); setCsvHeaders([]); setCsvRows([]);
+      setError("");
+    } catch(err) { setError(err instanceof Error?err.message:"Could not import CSV rows."); }
+  }
+
   async function createStatement(e: React.FormEvent) {
     e.preventDefault(); setBusy(true); setError("");
     try {
@@ -78,6 +145,7 @@ export default function BankReconciliationPanel({ schoolId, currency, periods, a
         <label>Opening balance<input type="number" step="0.01" required value={opening} onChange={e=>setOpening(e.target.value)}/></label>
         <label>Closing balance<input type="number" step="0.01" required value={closing} onChange={e=>setClosing(e.target.value)}/></label>
       </div>
+      <div className="entry-panel"><h3>Import bank statement CSV</h3><p>Upload a CSV and map its columns. Positive values are deposits; negative values or DR amounts are withdrawals.</p><div className="form-grid"><label>CSV file<input type="file" accept=".csv,text/csv" onChange={e=>void loadCsv(e.target.files?.[0])}/></label><label>Template <a href="data:text/csv;charset=utf-8,transaction_date%2Cdescription%2Creference%2Camount%0A2026-10-01%2CExample%20deposit%2CREF001%2C1000.00" download="precious-schoolbooks-bank-import-template.csv">Download CSV template</a></label></div>{csvHeaders.length>0&&<><div className="form-grid"><label>Date column<select value={csvMapping.date} onChange={e=>setCsvMapping(v=>({...v,date:e.target.value}))}><option value="">Select column</option>{csvHeaders.map(h=><option key={h}>{h}</option>)}</select></label><label>Description column<select value={csvMapping.description} onChange={e=>setCsvMapping(v=>({...v,description:e.target.value}))}><option value="">Select column</option>{csvHeaders.map(h=><option key={h}>{h}</option>)}</select></label><label>Amount column<select value={csvMapping.amount} onChange={e=>setCsvMapping(v=>({...v,amount:e.target.value}))}><option value="">Select column</option>{csvHeaders.map(h=><option key={h}>{h}</option>)}</select></label><label>Reference column<select value={csvMapping.reference} onChange={e=>setCsvMapping(v=>({...v,reference:e.target.value}))}><option value="">Not supplied</option>{csvHeaders.map(h=><option key={h}>{h}</option>)}</select></label></div><p>{csvRows.length} CSV transaction row(s) loaded.</p><button type="button" className="secondary" onClick={applyCsvRows}>Add imported rows to statement</button></>}</div>
       <h4>Add statement line</h4>
       <div className="form-grid">
         <label>Transaction date<input type="date" value={lineDate} onChange={e=>setLineDate(e.target.value)}/></label>
