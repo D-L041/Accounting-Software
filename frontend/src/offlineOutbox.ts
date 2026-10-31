@@ -99,7 +99,7 @@ async function queueDraft(resourceType: "expense" | "purchase_order", payload: O
     const draft: StoredDraft = {
       idempotencyKey: crypto.randomUUID(), scope, userId, schoolId,
       createdAt: new Date().toISOString(), iv: iv.buffer.slice(0), ciphertext,
-      state: "queued",
+      resourceType, state: "queued",
     };
     const tx = db.transaction("drafts", "readwrite");
     tx.objectStore("drafts").add(draft);
