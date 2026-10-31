@@ -8,7 +8,9 @@
 - Persisted STK attempts with unique CheckoutRequestID and callback state.
 - STK callback capture followed by Daraja STK Query before attempting a ledger posting.
 - Payment posting through the existing billing service, preserving receipt numbering, invoice allocation, double-entry posting and external-reference uniqueness.
-- C2B validation and confirmation endpoints. C2B confirmations are durably deduplicated by TransID and held for verification/reconciliation; they are deliberately not posted automatically yet.
+- C2B validation and confirmation endpoints. C2B confirmations are durably deduplicated by TransID and held for verification/reconciliation.
+- School-scoped C2B review queue that only exposes transactions whose BillRefNumber exactly matches an invoice number in that school.
+- Controlled manual reconciliation: an authorised school user must select the invoice and explicitly confirm an independent match against the Safaricom statement. The workflow checks the outstanding invoice balance, duplicate TransID, school/student ownership and financial period through the existing billing service, then creates the normal M-Pesa receipt and balanced ledger journal. The notification stores the linked invoice, payment, operator and reconciliation timestamp.
 
 ## Required environment variables
 
@@ -30,12 +32,12 @@ Register the C2B validation and confirmation endpoints with Safaricom using the 
 - /api/daraja/callbacks/c2b/validation/
 - /api/daraja/callbacks/c2b/confirmation/
 
-C2B callbacks are only captured at this stage. Before enabling automatic posting, implement and test the Daraja transaction-status query flow, resolve BillRefNumber to an invoice using an explicit school/paybill mapping, enforce amount/balance checks, and post with the originating transaction ID as the idempotency reference. Unknown or ambiguous references must go to manual review.
+C2B callbacks are captured first and are not automatically posted. The school review queue is available at `GET /api/daraja/schools/{school_id}/c2b/`. Reconcile a selected transaction with `POST /api/daraja/schools/{school_id}/c2b/{notification_id}/reconcile/` using `invoice_id` and `confirm_statement_match: true`. The BillRefNumber must exactly match the selected invoice number and the operator must independently compare the transaction with the Safaricom statement before confirming. Unknown references do not appear in a school queue and must be investigated centrally. Automatic C2B posting remains disabled until Daraja transaction-status verification and school-specific paybill mapping are implemented and independently tested.
 
 ## Go-live safety gates
 
 1. Complete Daraja sandbox tests for successful, cancelled, timed-out, duplicate and malformed STK callbacks.
-2. Add transaction-status verification and reconciliation for C2B confirmations before posting them.
+2. Add Daraja transaction-status verification and school-specific paybill mapping before enabling unattended C2B posting. The current controlled workflow requires human statement verification.
 3. Verify callback endpoint abuse controls, request-size limits, rate limits, monitoring and retry handling. Daraja callbacks are not authenticated by Django sessions; do not treat an unauthenticated callback body alone as proof of payment.
 4. Configure real shortcode, passkey and approved production credentials in the hosting secret manager.
 5. Complete Safaricom's production onboarding/go-live process and test a controlled live transaction before school rollout.
