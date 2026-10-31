@@ -44,11 +44,13 @@ class SchoolLedgerViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         self.check_write_role()
-        serializer.save(school=self.get_school())
+        instance = serializer.save(school=self.get_school())
+        record_event(school=self.get_school(), actor=self.request.user, action=f"{instance.__class__.__name__.upper()}_CREATED", entity_type=instance.__class__.__name__, entity_id=instance.pk, summary=f"Created {instance.__class__.__name__}")
 
     def perform_update(self, serializer):
         self.check_write_role()
-        serializer.save()
+        instance = serializer.save()
+        record_event(school=self.get_school(), actor=self.request.user, action=f"{instance.__class__.__name__.upper()}_UPDATED", entity_type=instance.__class__.__name__, entity_id=instance.pk, summary=f"Updated {instance.__class__.__name__}")
 
     def perform_destroy(self, instance):
         self.check_write_role()
@@ -69,7 +71,8 @@ class AccountViewSet(SchoolLedgerViewSet):
         changed_fields = set(serializer.validated_data) - {"is_active"}
         if used_in_posted_journal and changed_fields:
             raise PermissionDenied("An account used in posted journals cannot have its code, name or category changed.")
-        serializer.save()
+        instance = serializer.save()
+        record_event(school=self.get_school(), actor=self.request.user, action="ACCOUNT_UPDATED", entity_type="Account", entity_id=instance.pk, summary=f"Updated ledger account {instance.code}")
 
 
 class FinancialPeriodViewSet(SchoolLedgerViewSet):
@@ -83,7 +86,8 @@ class FinancialPeriodViewSet(SchoolLedgerViewSet):
         self.check_write_role()
         if serializer.instance.is_locked:
             raise PermissionDenied("A locked financial period cannot be edited.")
-        serializer.save()
+        instance = serializer.save()
+        record_event(school=self.get_school(), actor=self.request.user, action="FINANCIAL_PERIOD_UPDATED", entity_type="FinancialPeriod", entity_id=instance.pk, summary=f"Updated financial period {instance.name}")
 
     @action(detail=True, methods=["post"])
     def lock_period(self, request, school_pk=None, pk=None):
