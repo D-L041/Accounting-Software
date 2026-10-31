@@ -82,7 +82,7 @@ def create_payroll_run(*, school, period, payroll_month, pay_date, user):
         pay_date=pay_date, created_by=user,
     )
     for employee in employees:
-        gross = money(employee.basic_salary)
+        gross = money(employee.basic_salary + employee.regular_cash_allowances)
         nssf_base = min(gross, rules["NSSF"].ceiling) if rules["NSSF"].ceiling else gross
         nssf_employee = money(nssf_base * rules["NSSF"].employee_rate)
         nssf_employer = money(nssf_base * rules["NSSF"].employer_rate)
@@ -103,14 +103,15 @@ def create_payroll_run(*, school, period, payroll_month, pay_date, user):
         taxable = max(Decimal("0.00"), taxable)
         relief = rules["PERSONAL_RELIEF"].fixed_employee if employee.is_resident else Decimal("0.00")
         paye = calculate_paye(taxable, bands, relief)
-        net = money(gross - paye - nssf_employee - shif_employee - housing_employee)
+        other_deductions = money(employee.monthly_other_deductions)
+        net = money(gross - paye - nssf_employee - shif_employee - housing_employee - other_deductions)
         if net < 0:
             raise ValidationError(f"Statutory deductions exceed gross pay for employee {employee.employee_number}.")
         PayrollLine.objects.create(
             run=run, employee=employee, basic_salary=employee.basic_salary,
-            other_earnings=Decimal("0.00"), gross_pay=gross, taxable_pay=money(taxable),
+            other_earnings=employee.regular_cash_allowances, gross_pay=gross, taxable_pay=money(taxable),
             paye=paye, nssf_employee=nssf_employee, shif_employee=shif_employee,
-            housing_levy_employee=housing_employee, net_pay=net,
+            housing_levy_employee=housing_employee, other_deductions=other_deductions, net_pay=net,
             nssf_employer=nssf_employer, housing_levy_employer=housing_employer,
         )
     record_event(
