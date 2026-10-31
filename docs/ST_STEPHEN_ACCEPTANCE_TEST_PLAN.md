@@ -78,7 +78,7 @@ Use synthetic employees and compare the output independently with a Kenyan payro
 
 1. Verify the effective NSSF rule for the month, including January/February 2026 rate transition.
 2. Test the documented KES 50,000 and KES 100,000 benchmark cases.
-3. Confirm employee NSSF, SHIF and Housing Levy, PAYE, net pay and employer contributions.
+3. Confirm employee NSSF, SHIF and Housing Levy, PAYE and net pay; separately confirm NSSF, Housing Levy and NITA employer costs, including KES 50 NITA per active employee, without deducting NITA from employee net pay.
 4. Confirm payroll posting creates a balanced journal and the run becomes immutable.
 5. Verify remittance schedules, insurance relief, mortgage interest, post-retirement medical fund, additional pension, exemptions, taxable benefits, NITA and exports before marking payroll production-ready.
 
