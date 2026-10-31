@@ -1,6 +1,9 @@
+import csv
+
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError
 from django.db.models import Q
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
@@ -131,6 +134,70 @@ class PayrollRunViewSet(SchoolPayrollViewSet, viewsets.GenericViewSet):
         except IntegrityError as exc:
             raise ValidationError("A payroll run already exists for this school and month.") from exc
         return Response(PayrollRunSerializer(run, context=self.get_serializer_context()).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["get"], url_path="statutory-export")
+    def statutory_export(self, request, school_pk=None, pk=None):
+        run = get_object_or_404(self.get_queryset(), pk=pk)
+        schedule = request.query_params.get("schedule", "REGISTER").upper()
+        schedules = {
+            "REGISTER": (
+                ["Employee number", "Employee name", "Payroll month", "Status", "Gross pay", "Taxable pay",
+                 "PAYE", "NSSF employee", "NSSF employer", "SHIF", "Housing levy employee",
+                 "Housing levy employer", "NITA employer", "Other deductions", "Net pay"],
+                lambda line: [
+                    line.employee.employee_number, line.employee.full_name, run.payroll_month.isoformat(),
+                    run.status, line.gross_pay, line.taxable_pay, line.paye, line.nssf_employee,
+                    line.nssf_employer, line.shif_employee, line.housing_levy_employee,
+                    line.housing_levy_employer, line.nita_levy_employer, line.other_deductions, line.net_pay,
+                ],
+            ),
+            "PAYE": (
+                ["Employee PIN/number", "Employee name", "Payroll month", "Gross pay", "Taxable pay", "PAYE"],
+                lambda line: [line.employee.employee_number, line.employee.full_name, run.payroll_month.isoformat(),
+                              line.gross_pay, line.taxable_pay, line.paye],
+            ),
+            "NSSF": (
+                ["Employee number", "Employee name", "Payroll month", "Employee NSSF", "Employer NSSF", "Total NSSF"],
+                lambda line: [line.employee.employee_number, line.employee.full_name, run.payroll_month.isoformat(),
+                              line.nssf_employee, line.nssf_employer, line.nssf_employee + line.nssf_employer],
+            ),
+            "SHIF": (
+                ["Employee number", "Employee name", "Payroll month", "Gross pay", "SHIF contribution"],
+                lambda line: [line.employee.employee_number, line.employee.full_name, run.payroll_month.isoformat(),
+                              line.gross_pay, line.shif_employee],
+            ),
+            "AHL": (
+                ["Employee number", "Employee name", "Payroll month", "Gross pay", "Employee levy", "Employer levy", "Total levy"],
+                lambda line: [line.employee.employee_number, line.employee.full_name, run.payroll_month.isoformat(),
+                              line.gross_pay, line.housing_levy_employee, line.housing_levy_employer,
+                              line.housing_levy_employee + line.housing_levy_employer],
+            ),
+            "NITA": (
+                ["Employee number", "Employee name", "Payroll month", "Employer NITA levy"],
+                lambda line: [line.employee.employee_number, line.employee.full_name, run.payroll_month.isoformat(),
+                              line.nita_levy_employer],
+            ),
+        }
+        if schedule not in schedules:
+            raise ValidationError({"schedule": "Choose REGISTER, PAYE, NSSF, SHIF, AHL or NITA."})
+        if schedule != "REGISTER" and run.status != PayrollRun.Status.POSTED:
+            raise ValidationError("Statutory schedules are available only after payroll has been posted.")
+        headers, row_values = schedules[schedule]
+        response = HttpResponse(content_type="text/csv; charset=utf-8")
+        response["Content-Disposition"] = (
+            f'attachment; filename="precious-payroll-{run.payroll_month:%Y-%m}-{schedule.lower()}.csv"'
+        )
+        writer = csv.writer(response)
+        writer.writerow(headers)
+        for line in run.lines.select_related("employee").order_by("employee__employee_number"):
+            writer.writerow(row_values(line))
+        record_event(
+            school=run.school, actor=request.user, action="PAYROLL_EXPORT_DOWNLOADED",
+            entity_type="PayrollRun", entity_id=run.pk,
+            summary=f"Downloaded {schedule} payroll export for {run.payroll_month:%B %Y}",
+            metadata={"schedule": schedule, "payroll_status": run.status},
+        )
+        return response
 
     @action(detail=True, methods=["post"])
     def post(self, request, school_pk=None, pk=None):
