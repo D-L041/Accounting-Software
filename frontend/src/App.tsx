@@ -166,6 +166,10 @@ export default function App() {
     event.preventDefault();
     await submitAction(`${schoolBase}/ledger/accounts/`,{code:form.account_code,name:form.account_name,category:form.account_category},"Ledger account created.");
   }
+  async function createAcademicYear(event:FormEvent) {
+    event.preventDefault();
+    await submitAction(schoolBase + "/academic-years/",{name:form.year_name,starts_on:form.year_start,ends_on:form.year_end,is_current:form.year_current==="true"},"Academic year created.");
+  }
   async function createPeriod(event:FormEvent) {
     event.preventDefault();
     await submitAction(`${schoolBase}/ledger/periods/`,{name:form.period_name,starts_on:form.period_start,ends_on:form.period_end},"Financial period created.");
