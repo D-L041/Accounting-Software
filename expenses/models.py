@@ -238,7 +238,10 @@ class SupplierBillPayment(models.Model):
 
     def save(self, *args, **kwargs):
         if self.pk:
-            raise ValidationError("Supplier bill payments are immutable.")
+            existing = SupplierBillPayment.objects.get(pk=self.pk)
+            update_fields = set(kwargs.get("update_fields") or [])
+            if existing.journal_entry_id or update_fields != {"journal_entry"} or not self.journal_entry_id:
+                raise ValidationError("Supplier bill payments are immutable.")
         self.full_clean()
         return super().save(*args, **kwargs)
 
