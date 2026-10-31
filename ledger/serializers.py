@@ -27,6 +27,15 @@ class JournalLineSerializer(serializers.ModelSerializer):
         fields = ["id", "account", "account_code", "account_name", "description", "debit", "credit"]
         read_only_fields = ["id", "account_code", "account_name"]
 
+    def validate(self, attrs):
+        debit = attrs.get("debit", 0)
+        credit = attrs.get("credit", 0)
+        if debit < 0 or credit < 0:
+            raise serializers.ValidationError("Journal amounts cannot be negative.")
+        if (debit > 0) == (credit > 0):
+            raise serializers.ValidationError("Each journal line must contain exactly one positive debit or credit.")
+        return attrs
+
 
 class JournalEntrySerializer(serializers.ModelSerializer):
     lines = JournalLineSerializer(many=True)
