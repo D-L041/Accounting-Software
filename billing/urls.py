@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import BillingSettingsViewSet, FeeItemViewSet, FeeScheduleViewSet, InvoiceViewSet, PaymentViewSet
+from .receipt_views import PaymentReceiptPdfView
 
 urlpatterns = [
     path("fee-schedules/", FeeScheduleViewSet.as_view({"get": "list", "post": "create"}), name="billing-fee-schedules"),
@@ -14,5 +15,6 @@ urlpatterns = [
     path("invoices/<int:pk>/", InvoiceViewSet.as_view({"get": "retrieve", "patch": "partial_update"}), name="billing-invoice-detail"),
     path("invoices/<int:pk>/issue/", InvoiceViewSet.as_view({"post": "issue"}), name="billing-invoice-issue"),
     path("payments/", PaymentViewSet.as_view({"get": "list", "post": "create"}), name="billing-payments"),
+    path("payments/<int:pk>/receipt/", PaymentReceiptPdfView.as_view(), name="billing-payment-receipt"),
     path("payments/<int:pk>/", PaymentViewSet.as_view({"get": "retrieve"}), name="billing-payment-detail"),
 ]
