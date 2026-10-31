@@ -2,11 +2,11 @@
 
 ## Current implementation — controlled pilot stage
 
-The frontend is installable as a progressive web app and its service worker caches the application shell and static assets only. An encrypted IndexedDB outbox now supports **expense draft capture** while disconnected, using AES-GCM and a non-extractable browser key scoped to the signed-in user and school. The outbox never stores passwords, session cookies, CSRF tokens, Daraja secrets or API response bodies.
+The frontend is installable as a progressive web app and its service worker caches the application shell and static assets only. An encrypted IndexedDB outbox now supports **expense draft capture** while disconnected, using AES-GCM and a non-extractable browser key scoped to the signed-in user and school. The UI shows queued drafts, offers manual synchronisation when online and allows explicit local discard. The outbox never stores passwords, session cookies, CSRF tokens, Daraja secrets or API response bodies.
 
 When connectivity returns, the client sends each expense draft to the authenticated school-scoped sync endpoint. The server validates membership, write role, school-owned category/period/supplier references and the expense serializer; it stores an idempotency receipt and creates a DRAFT expense only. Repeated deliveries return the original outcome, and reusing a key with different data returns a conflict. The endpoint cannot post a journal. Synced drafts must be reviewed and posted online through the normal expense workflow.
 
-This is not yet full offline operation across all modules. Reference lists must already be loaded in the current session before disconnection; authenticated API responses and pupil, employee, payroll and ledger data are not cached. Offline capture beyond expense drafts, a full draft review/discard interface, device-loss recovery and independent offline security testing remain outstanding.
+This is not yet full offline operation across all modules. Reference lists must already be loaded in the current session before disconnection; authenticated API responses and pupil, employee, payroll and ledger data are not cached. Offline capture beyond expense drafts, richer conflict resolution and recovery, device-loss recovery and independent offline security testing remain outstanding.
 
 This is intentional: cached financial or pupil records on a shared school device create confidentiality and data-protection risks, and silently replaying a payment or journal could duplicate accounting entries.
 
