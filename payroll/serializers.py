@@ -33,7 +33,7 @@ class PayrollSettingsSerializer(serializers.ModelSerializer):
         fields = [
             "id", "salary_expense_account", "net_payable_account",
             "paye_payable_account", "nssf_payable_account",
-            "shif_payable_account", "housing_levy_payable_account", "other_deductions_payable_account", "nita_payable_account",
+            "shif_payable_account", "housing_levy_payable_account", "other_deductions_payable_account", "nita_payable_account", "additional_pension_payable_account",
         ]
         read_only_fields = ["id"]
 
@@ -48,6 +48,7 @@ class PayrollSettingsSerializer(serializers.ModelSerializer):
             "housing_levy_payable_account": Account.Category.LIABILITY,
             "other_deductions_payable_account": Account.Category.LIABILITY,
             "nita_payable_account": Account.Category.LIABILITY,
+            "additional_pension_payable_account": Account.Category.LIABILITY,
         }
         for field, category in expected.items():
             account = attrs.get(field, getattr(self.instance, field, None))
