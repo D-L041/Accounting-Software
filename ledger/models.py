@@ -89,7 +89,7 @@ class JournalEntry(models.Model):
         if self.period_id and self.school_id and self.period.school_id != self.school_id:
             raise ValidationError({"period": "Financial period must belong to the same school."})
 
-    def post(self):
+    def post(self, actor=None):
         """Validate and atomically post a balanced, immutable journal."""
         with transaction.atomic():
             entry = JournalEntry.objects.select_for_update().select_related("period", "school").get(pk=self.pk)
@@ -125,7 +125,7 @@ class JournalEntry(models.Model):
             entry.save(update_fields=["posted", "posted_at"])
             from auditlog.services import record_event
             record_event(
-                school=entry.school, actor=entry.created_by, action="JOURNAL_POSTED",
+                school=entry.school, actor=actor or entry.created_by, action="JOURNAL_POSTED",
                 entity_type="JournalEntry", entity_id=entry.pk,
                 summary=f"Posted journal {entry.reference}",
                 metadata={"reference": entry.reference, "period": entry.period.name, "entry_date": entry.entry_date.isoformat()},
