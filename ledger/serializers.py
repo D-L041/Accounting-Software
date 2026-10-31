@@ -1,7 +1,7 @@
 from django.db import transaction
 from rest_framework import serializers
 
-from .models import Account, FinancialPeriod, JournalEntry, JournalLine
+from .models import Account, BankStatement, BankStatementLine, FinancialPeriod, JournalEntry, JournalLine
 
 
 class AccountSerializer(serializers.ModelSerializer):
@@ -82,3 +82,66 @@ class JournalEntrySerializer(serializers.ModelSerializer):
         for line in lines:
             JournalLine.objects.create(entry=entry, **line)
         return entry
+
+class BankStatementLineSerializer(serializers.ModelSerializer):
+    matched_journal_reference = serializers.CharField(
+        source="matched_journal_line.entry.reference", read_only=True
+    )
+
+    class Meta:
+        model = BankStatementLine
+        fields = [
+            "id", "transaction_date", "description", "reference", "amount",
+            "matched_journal_line", "matched_journal_reference", "created_at",
+        ]
+        read_only_fields = ["id", "matched_journal_line", "matched_journal_reference", "created_at"]
+
+
+class BankStatementSerializer(serializers.ModelSerializer):
+    lines = BankStatementLineSerializer(many=True)
+    account_name = serializers.CharField(source="account.name", read_only=True)
+    period_name = serializers.CharField(source="period.name", read_only=True)
+    statement_movement = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
+    calculated_closing_balance = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
+    is_statement_arithmetic_valid = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = BankStatement
+        fields = [
+            "id", "account", "account_name", "period", "period_name",
+            "statement_start", "statement_end", "opening_balance", "closing_balance",
+            "status", "uploaded_by", "reconciled_at", "created_at", "lines",
+            "statement_movement", "calculated_closing_balance", "is_statement_arithmetic_valid",
+        ]
+        read_only_fields = [
+            "id", "status", "uploaded_by", "reconciled_at", "created_at",
+            "account_name", "period_name", "statement_movement",
+            "calculated_closing_balance", "is_statement_arithmetic_valid",
+        ]
+
+    def validate(self, attrs):
+        school = self.context["school"]
+        account = attrs.get("account", getattr(self.instance, "account", None))
+        period = attrs.get("period", getattr(self.instance, "period", None))
+        if account and (account.school_id != school.id or account.category != Account.Category.ASSET):
+            raise serializers.ValidationError({"account": "Choose an asset account belonging to this school."})
+        if period and period.school_id != school.id:
+            raise serializers.ValidationError({"period": "Financial period must belong to this school."})
+        if self.instance and self.instance.status != BankStatement.Status.DRAFT:
+            raise serializers.ValidationError("A reconciled bank statement cannot be edited.")
+        if not self.instance and not attrs.get("lines"):
+            raise serializers.ValidationError({"lines": "Add at least one bank statement line."})
+        return attrs
+
+    @transaction.atomic
+    def create(self, validated_data):
+        lines = validated_data.pop("lines")
+        statement = BankStatement.objects.create(
+            school=self.context["school"],
+            uploaded_by=self.context["request"].user,
+            **validated_data,
+        )
+        for line in lines:
+            BankStatementLine.objects.create(statement=statement, **line)
+        return statement
+
