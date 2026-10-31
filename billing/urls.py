@@ -1,6 +1,6 @@
 from django.urls import path
 
-from .views import BillingSettingsViewSet, FeeItemViewSet, FeeScheduleViewSet, InvoiceViewSet, PaymentViewSet
+from .views import BillingSettingsViewSet, CreditNoteViewSet, FeeItemViewSet, FeeScheduleViewSet, InvoiceViewSet, PaymentViewSet
 from .receipt_views import PaymentReceiptPdfView
 
 urlpatterns = [
@@ -14,7 +14,11 @@ urlpatterns = [
     path("invoices/", InvoiceViewSet.as_view({"get": "list", "post": "create"}), name="billing-invoices"),
     path("invoices/<int:pk>/", InvoiceViewSet.as_view({"get": "retrieve", "patch": "partial_update"}), name="billing-invoice-detail"),
     path("invoices/<int:pk>/issue/", InvoiceViewSet.as_view({"post": "issue"}), name="billing-invoice-issue"),
+    path("credit-notes/", CreditNoteViewSet.as_view({"get": "list", "post": "create"}), name="billing-credit-notes"),
+    path("credit-notes/<int:pk>/", CreditNoteViewSet.as_view({"get": "retrieve"}), name="billing-credit-note-detail"),
+    path("credit-notes/<int:pk>/post/", CreditNoteViewSet.as_view({"post": "post"}), name="billing-credit-note-post"),
     path("payments/", PaymentViewSet.as_view({"get": "list", "post": "create"}), name="billing-payments"),
+    path("payments/<int:pk>/refunds/", PaymentViewSet.as_view({"post": "refund"}), name="billing-payment-refund"),
     path("payments/<int:pk>/receipt/", PaymentReceiptPdfView.as_view(), name="billing-payment-receipt"),
     path("payments/<int:pk>/", PaymentViewSet.as_view({"get": "retrieve"}), name="billing-payment-detail"),
 ]
