@@ -8,6 +8,7 @@ from accounts.models import School
 from ledger.models import FinancialPeriod
 from ledger.services import (
     build_balance_sheet,
+    build_cashbook,
     build_income_expenditure_statement,
     build_trial_balance,
 )
@@ -44,3 +45,8 @@ class IncomeExpenditureView(SchoolReportView):
 class BalanceSheetView(SchoolReportView):
     def get(self, request, school_pk):
         return Response(build_balance_sheet(self.get_period(request, school_pk)))
+
+
+class CashbookView(SchoolReportView):
+    def get(self, request, school_pk):
+        return Response(build_cashbook(self.get_period(request, school_pk)))
