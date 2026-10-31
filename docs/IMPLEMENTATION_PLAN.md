@@ -1,11 +1,49 @@
 # Implementation plan
 
-1. Foundation: school-scoped authentication and role permissions, school tenancy, financial periods, chart of accounts, immutable double-entry ledger, trial balance and immutable audit events for core financial postings are implemented. Remaining: broader CRUD audit coverage, delegated user administration and controlled reversals.
-2. School operations and billing: student/class/academic-year records, fee items, class/term fee schedules, idempotent bulk draft invoice generation, manual draft invoices, invoice issue, cash/bank/M-Pesa receipts and payment allocations are implemented in the API and connected frontend. Remaining: fee schedules by class/term, bulk invoicing, credit notes/refunds, printable receipts and verified payment-provider callbacks.
-3. Cash management: supplier directory, expense categories and draft expense recording are implemented. Posting an expense creates a balanced Dr Expense / Cr Cash, Bank or M-Pesa Clearing journal and makes the posted record immutable. Cashbook movement report is implemented from posted cash, bank and M-Pesa ledger lines. Remaining: supplier bills/payables, approvals, petty cash controls, bank imports and reconciliation.
-4. Advanced finance: payroll with effective-dated Kenyan statutory parameters, budgets, procurement, budgets, cash flow reporting and management reports.
-5. Client: responsive React/TypeScript frontend, secure login, school-aware data views and forms for students, classes, fees, receipts, suppliers and expenses are implemented. Remaining: full UI coverage, accessibility/E2E tests, PWA installability, IndexedDB queue and conflict-aware offline sync.
-6. Assurance: unit/integration/E2E tests, permission and tenant-isolation tests, independent security review, restore drill and production smoke tests.
-7. Deployment: managed PostgreSQL, Django API hosting, Vercel frontend, DNS/HTTPS, backups, monitoring and administrator handover.
+## Phase 1 — accounting foundation
 
-No real school records, payroll figures, statutory rates or production credentials are to be invented. Production release requires independent verification of all acceptance criteria.
+**Implemented:** school-scoped authentication and role permissions, tenant isolation, financial periods, chart of accounts, balanced double-entry ledger, immutable posted journals/lines, trial balance and core audit events.
+
+**Remaining:** complete CRUD audit coverage, configurable approval limits, controlled reversals for all correction cases, broader penetration testing and independent accounting controls review.
+
+## Phase 2 — school operations and billing
+
+**Implemented:** student/class/academic-year records, fee items, class/term fee schedules, duplicate-safe bulk draft invoice generation, invoice issue, cash/bank/M-Pesa receipts, payment allocations, PDF receipts, credit notes and refunds.
+
+**Remaining:** full acceptance testing for every invoice/refund edge case, payment-provider production onboarding and school-specific payment configuration.
+
+## Phase 3 — cash management and procurement
+
+**Implemented:** supplier directory, expense categories, draft and posted expenses, supplier bills/payables, owner/admin approval separation, partial/full supplier-bill settlement, budgets, bank statement capture, manual matching and reconciliation audit trail. Cashbook and cash-flow movement reports include ledger-derived opening balances.
+
+**Remaining:** purchase orders, supplier approval thresholds, multi-level procurement approvals, CSV bank import mapping, bank feeds, petty-cash controls and a fully classified cash-flow statement.
+
+## Phase 4 — payroll
+
+**Implemented:** employee records, effective-dated Kenyan statutory rules, payroll draft calculation, payroll ledger mappings and posting. The NSSF employee contribution PAYE deductibility rule was corrected and benchmark regression tests added.
+
+**Remaining:** insurance relief, mortgage-interest and post-retirement medical deductions, additional pension contributions, exemption certificates, taxable non-cash benefits, NITA employer levy, statutory schedules/exports, complete payroll edge-case testing and independent Kenyan payroll-practitioner sign-off. See `docs/PAYROLL_STATUTORY_REVIEW.md`.
+
+## Phase 5 — payment provider integration
+
+**Implemented:** Daraja STK Push initiation, persisted attempts, callback capture and STK Query verification before payment posting. C2B notifications are captured, deduplicated and manually reconciled after an independent Safaricom statement match.
+
+**Remaining:** sandbox end-to-end tests, production callback hardening, school-specific shortcode/Paybill mapping and transaction-status verification before any unattended C2B posting. Automatic C2B posting remains disabled.
+
+## Phase 6 — client and offline operation
+
+**Implemented:** responsive React/TypeScript frontend, secure login, school-aware workflows, bank reconciliation, credit-note/refund, payroll, procurement and budget screens. PWA manifest and service worker cache the static application shell only.
+
+**Remaining:** complete accessibility and end-to-end browser tests, offline draft outbox, authenticated sync API, idempotency, conflict UI and security/privacy tests. Financial writes remain online-only until the complete sync design is implemented and tested. See `docs/OFFLINE_SYNC_DESIGN.md`.
+
+## Phase 7 — assurance and operations
+
+**Implemented:** backend unit/integration tests, PostgreSQL CI, frontend production build, API container build, selected tenant-isolation tests and backup/restore runbook.
+
+**Remaining:** final branch-head CI pass, full tenant-isolation suite, independent security review, dependency scanning, managed backup schedule, witnessed restore drill, production smoke tests and St Stephen School acceptance testing. See `docs/BACKUP_RESTORE_RUNBOOK.md` and `docs/RELEASE_CHECKLIST.md`.
+
+## Phase 8 — deployment and handover
+
+**Remaining:** provision managed PostgreSQL and Django API hosting, configure protected environment secrets, deploy frontend, connect domain and HTTPS, enable monitoring/backups, perform administrator training and hand over access/recovery procedures.
+
+No real school records, payroll figures, statutory rates or production credentials are to be invented. Production release requires independent verification of all acceptance criteria and written school sign-off.
