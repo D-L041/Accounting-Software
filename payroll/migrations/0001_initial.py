@@ -55,6 +55,8 @@ class Migration(migrations.Migration):
                 ("last_name", models.CharField(max_length=80)),
                 ("job_title", models.CharField(blank=True, max_length=120)),
                 ("basic_salary", models.DecimalField(decimal_places=2, max_digits=14)),
+                ("regular_cash_allowances", models.DecimalField(decimal_places=2, default=Decimal("0.00"), max_digits=14)),
+                ("monthly_other_deductions", models.DecimalField(decimal_places=2, default=Decimal("0.00"), max_digits=14)),
                 ("is_resident", models.BooleanField(default=True)),
                 ("hire_date", models.DateField()),
                 ("is_active", models.BooleanField(default=True)),
@@ -64,7 +66,7 @@ class Migration(migrations.Migration):
             options={"ordering": ["last_name", "first_name"]},
         ),
         migrations.AddConstraint(model_name="employee", constraint=models.UniqueConstraint(fields=("school", "employee_number"), name="unique_employee_number_school")),
-        migrations.AddConstraint(model_name="employee", constraint=models.CheckConstraint(condition=Q(basic_salary__gte=0), name="employee_basic_salary_nonnegative")),
+        migrations.AddConstraint(model_name="employee", constraint=models.CheckConstraint(condition=Q(basic_salary__gte=0) & Q(regular_cash_allowances__gte=0) & Q(monthly_other_deductions__gte=0), name="employee_pay_components_nonnegative")),
         migrations.CreateModel(
             name="PayrollRule",
             fields=[
