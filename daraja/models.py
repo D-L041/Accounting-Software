@@ -51,6 +51,10 @@ class C2BNotification(models.Model):
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.RECEIVED)
     payload = models.JSONField(default=dict, blank=True)
     received_at = models.DateTimeField(auto_now_add=True)
+    matched_invoice = models.ForeignKey(Invoice, null=True, blank=True, on_delete=models.PROTECT, related_name="c2b_notifications")
+    payment = models.OneToOneField("billing.Payment", null=True, blank=True, on_delete=models.PROTECT, related_name="c2b_notification")
+    reconciled_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="reconciled_c2b_notifications")
+    reconciled_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["-received_at"]
