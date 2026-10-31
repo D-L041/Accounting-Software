@@ -13,7 +13,7 @@ from rest_framework.views import APIView
 from accounts.models import School, SchoolMembership
 from billing.models import Invoice
 from .models import C2BNotification, StkPushAttempt
-from .services import initiate_stk_push, process_stk_callback
+from .services import initiate_stk_push, process_stk_callback, reconcile_c2b_notification
 
 
 class StkPushView(APIView):
@@ -90,3 +90,29 @@ def c2b_confirmation(request):
         return JsonResponse({"ResultCode": "C2B00012", "ResultDesc": "Invalid confirmation payload"}, status=400)
     # C2B is durably captured, but is not posted until a transaction-status verification and invoice match pass.
     return JsonResponse({"ResultCode": 0, "ResultDesc": "Confirmation captured for verification"})
+
+
+class C2BReconcileView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, school_pk, notification_pk):
+        school = School.objects.filter(
+            pk=school_pk, is_active=True,
+            memberships__user=request.user, memberships__is_active=True,
+        ).first()
+        if not school:
+            raise PermissionDenied("You do not have access to this school.")
+        try:
+            notification = reconcile_c2b_notification(
+                notification_id=notification_pk, school=school, user=request.user,
+                invoice_id=request.data.get("invoice_id"),
+                confirm_statement_match=request.data.get("confirm_statement_match"),
+            )
+        except (DjangoValidationError, IntegrityError) as exc:
+            raise ValidationError(getattr(exc, "messages", [str(exc)])) from exc
+        return Response({
+            "id": notification.pk, "transaction_id": notification.transaction_id,
+            "status": notification.status, "invoice_id": notification.matched_invoice_id,
+            "payment_id": notification.payment_id,
+            "receipt_number": notification.payment.receipt_number if notification.payment_id else None,
+        }, status=status.HTTP_200_OK)
