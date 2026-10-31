@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 
@@ -14,7 +15,7 @@ class AuditEventQuerySet(models.QuerySet):
 
 class AuditEvent(models.Model):
     school = models.ForeignKey(School, on_delete=models.PROTECT, related_name="audit_events")
-    actor = models.ForeignKey("auth.User", null=True, blank=True, on_delete=models.PROTECT, related_name="school_audit_events")
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="school_audit_events")
     action = models.CharField(max_length=64)
     entity_type = models.CharField(max_length=64)
     entity_id = models.CharField(max_length=64)
