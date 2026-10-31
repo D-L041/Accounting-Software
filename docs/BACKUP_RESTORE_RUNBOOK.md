@@ -2,7 +2,7 @@
 
 ## Status
 
-This is an operational runbook, not evidence that backups are configured. The hosting provider, database instance, backup destination, retention policy, encryption keys and alert recipients must be recorded by the production administrator before live school data is loaded.
+This is an operational runbook, not evidence that production backups are configured. CI now performs an isolated PostgreSQL custom-format dump and restore against a disposable test database and verifies the restored Django migration table. That validates the basic backup/restore command path only; it does not prove production backup retention, encryption, point-in-time recovery, recovery objectives or a witnessed production restore. The hosting provider, database instance, backup destination, retention policy, encryption keys and alert recipients must be recorded by the production administrator before live school data is loaded.
 
 ## Minimum production configuration
 
