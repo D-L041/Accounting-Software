@@ -72,6 +72,7 @@ export default function App() {
   const [trialBalance,setTrialBalance] = useState<Row|null>(null);
   const [auditRows,setAuditRows] = useState<Row[]>([]);
   const [reportPeriod,setReportPeriod] = useState("");
+  const [reportType,setReportType] = useState("trial-balance");
   const [invoices,setInvoices] = useState<Row[]>([]);
   const [form,setForm] = useState<Record<string,string>>({});
   const [newSchool,setNewSchool] = useState({name:"",code:"",address:"",phone:"",email:""});
@@ -131,9 +132,10 @@ export default function App() {
     const periodId = reportPeriod || String(periods[0]?.id || "");
     if(!periodId) { setTrialBalance(null); return; }
     if(!reportPeriod) setReportPeriod(periodId);
-    api<Row>("/api/schools/" + school.id + "/ledger/reports/trial-balance/?period=" + periodId)
+    const route = reportType==="income-expenditure" ? "income-expenditure" : reportType==="balance-sheet" ? "balance-sheet" : "trial-balance";
+    api<Row>("/api/schools/" + school.id + "/ledger/reports/" + route + "/?period=" + periodId)
       .then(setTrialBalance).catch(e=>setError(errorText(e)));
-  },[active,school,periods,reportPeriod]);
+  },[active,school,periods,reportPeriod,reportType]);
 
   async function handleLogin(username:string,password:string) {
     const response=await login(username,password);
