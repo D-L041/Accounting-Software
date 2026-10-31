@@ -7,7 +7,6 @@ A green frontend build or successful deployment alone is not sufficient for fina
 - [x] Repository and initial architecture inspected.
 - [x] Ledger posting validation strengthened in the working branch.
 - [x] Posted journal and line mutation paths guarded.
-- [x] Trial balance service added for posted entries.
 - [x] Production settings reject missing secrets and non-PostgreSQL databases.
 - [x] Latest backend and frontend CI run observed and passed for the verified baseline (re-run required for subsequent commits).
 - [x] Session authentication, role permissions and school-level tenant isolation implemented and tested.
