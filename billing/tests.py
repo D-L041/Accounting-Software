@@ -6,6 +6,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from accounts.models import AcademicYear, School, SchoolMembership, Student
+from auditlog.models import AuditEvent
 from ledger.models import Account, FinancialPeriod, JournalEntry
 from .models import FeeItem, Invoice, Payment, SchoolBillingSettings
 
@@ -43,6 +44,7 @@ class BillingApiTests(TestCase):
         self.assertEqual(response.status_code, 200, response.data)
         journal = JournalEntry.objects.get(pk=response.data["journal_entry"])
         self.assertTrue(journal.posted)
+        self.assertTrue(AuditEvent.objects.filter(action="INVOICE_ISSUED", entity_id=str(invoice["id"])).exists())
         self.assertEqual(sum(x.debit for x in journal.lines.all()), Decimal("15000.00"))
         self.assertEqual(sum(x.credit for x in journal.lines.all()), Decimal("15000.00"))
 
@@ -57,6 +59,7 @@ class BillingApiTests(TestCase):
         self.assertEqual(response.status_code, 201, response.data)
         payment = Payment.objects.get(pk=response.data["id"])
         self.assertEqual(payment.journal_entry.lines.get(debit__gt=0).account_id, self.mpesa.pk)
+        self.assertTrue(AuditEvent.objects.filter(action="PAYMENT_RECEIVED", entity_id=str(payment.pk)).exists())
         refreshed = self.client.get(f"/api/schools/{self.school.pk}/billing/invoices/{invoice['id']}/")
         self.assertEqual(refreshed.data["status"], Invoice.Status.PART_PAID)
         self.assertEqual(Decimal(refreshed.data["balance"]), Decimal("10000.00"))
