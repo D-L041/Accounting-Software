@@ -1,5 +1,7 @@
+import json
+from unittest.mock import patch
+
 from django.test import SimpleTestCase, TestCase, Client
-from django.urls import reverse
 
 from .models import C2BNotification
 from .services import normalize_phone
@@ -26,12 +28,15 @@ class C2BCallbackTests(TestCase):
             "BillRefNumber": "INV-000001", "BusinessShortCode": "123456",
             "MSISDN": "254712345678", "TransTime": "20261031120000",
         }
-        first = client.post("/api/daraja/callbacks/c2b/confirmation/",
-                            data=__import__("json").dumps(payload),
-                            content_type="application/json")
-        second = client.post("/api/daraja/callbacks/c2b/confirmation/",
-                             data=__import__("json").dumps(payload),
-                             content_type="application/json")
+        with patch.dict("os.environ", {"DARAJA_SHORTCODE": "123456"}):
+            first = client.post(
+                "/api/daraja/callbacks/c2b/confirmation/",
+                data=json.dumps(payload), content_type="application/json",
+            )
+            second = client.post(
+                "/api/daraja/callbacks/c2b/confirmation/",
+                data=json.dumps(payload), content_type="application/json",
+            )
         self.assertEqual(first.status_code, 200)
         self.assertEqual(second.status_code, 200)
         self.assertEqual(C2BNotification.objects.filter(transaction_id="QWERTY12345").count(), 1)
