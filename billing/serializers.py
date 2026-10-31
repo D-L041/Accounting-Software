@@ -70,6 +70,10 @@ class InvoiceSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"academic_year": "Academic year must belong to this school."})
         if period and period.school_id != school.id:
             raise serializers.ValidationError({"period": "Financial period must belong to this school."})
+        invoice_date = attrs.get("invoice_date", getattr(self.instance, "invoice_date", None))
+        due_date = attrs.get("due_date", getattr(self.instance, "due_date", None))
+        if invoice_date and due_date and due_date < invoice_date:
+            raise serializers.ValidationError({"due_date": "Due date cannot be earlier than invoice date."})
         for line in attrs.get("lines", []):
             if line["fee_item"].school_id != school.id:
                 raise serializers.ValidationError({"lines": "All fee items must belong to this school."})
