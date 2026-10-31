@@ -39,7 +39,7 @@ export default function PayrollPanel({schoolId,currency,periods,accounts,canWrit
  }
  async function saveSettings(e:React.FormEvent){
   e.preventDefault();setBusy(true);setError("");
-  try{await api(settings ? `${base}/settings/${settings.id}/` : `${base}/settings/`,{method:settings?"PATCH":"POST",body:JSON.stringify(mapping)});await refresh();onChanged?.();}
+  try{await api(settings ? `${base}/settings/${settings.id}/` : `${base}/settings/`,{method:settings?"PATCH":"POST",body:JSON.stringify({...mapping,additional_pension_payable_account:mapping.additional_pension_payable_account||null})});await refresh();onChanged?.();}
   catch(err){setError(err instanceof Error?err.message:"Could not save payroll account mappings.");}finally{setBusy(false);}
  }
  async function createRun(e:React.FormEvent){
@@ -81,7 +81,7 @@ export default function PayrollPanel({schoolId,currency,periods,accounts,canWrit
    <form className="entry-panel" onSubmit={saveSettings}>
     <h3>Payroll ledger accounts</h3>
     <label>Salary expense<select required value={mapping.salary_expense_account||""} onChange={e=>setMapping(v=>({...v,salary_expense_account:e.target.value}))}><option value="">Select expense account</option>{expenses.map(a=><option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}</select></label>
-    {(["net_payable_account","paye_payable_account","nssf_payable_account","shif_payable_account","housing_levy_payable_account","other_deductions_payable_account","nita_payable_account","additional_pension_payable_account"] as const).map((key,i)=><label key={key}>{["Net salaries payable","PAYE payable","NSSF payable","SHIF payable","Housing levy payable","Other deductions payable","NITA levy payable","Additional pension payable"][i]}<select required value={mapping[key]||""} onChange={e=>setMapping(v=>({...v,[key]:e.target.value}))}><option value="">Select liability account</option>{liabilities.map(a=><option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}</select></label>)}
+    {(["net_payable_account","paye_payable_account","nssf_payable_account","shif_payable_account","housing_levy_payable_account","other_deductions_payable_account","nita_payable_account","additional_pension_payable_account"] as const).map((key,i)=><label key={key}>{["Net salaries payable","PAYE payable","NSSF payable","SHIF payable","Housing levy payable","Other deductions payable","NITA levy payable","Additional pension payable"][i]}<select required={key!=="additional_pension_payable_account"} value={mapping[key]||""} onChange={e=>setMapping(v=>({...v,[key]:e.target.value}))}><option value="">Select liability account</option>{liabilities.map(a=><option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}</select></label>)}
     <button className="primary" disabled={busy||!expenses.length||!liabilities.length}>{settings?"Update account mappings":"Save account mappings"}</button>
    </form>
   </div>}
