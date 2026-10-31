@@ -112,6 +112,7 @@ class Migration(migrations.Migration):
             fields=[
                 ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
                 ("housing_levy_payable_account", models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name="payroll_housing_settings", to="ledger.account")),
+                ("other_deductions_payable_account", models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name="payroll_other_deductions_settings", to="ledger.account")),
                 ("net_payable_account", models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name="payroll_net_payable_settings", to="ledger.account")),
                 ("nssf_payable_account", models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name="payroll_nssf_settings", to="ledger.account")),
                 ("paye_payable_account", models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name="payroll_paye_settings", to="ledger.account")),
