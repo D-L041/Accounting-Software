@@ -59,7 +59,11 @@ class CashFlowView(SchoolReportView):
         return Response({
             "period": report["period"],
             "basis": "Direct cash and bank movement from posted ledger entries",
-            "opening_balance_included": False,
+            "opening_balance_included": report["opening_balance_included"],
+            "opening_balance": report["opening_balance_total"],
+            "closing_balance": report["closing_balance_total"],
+            "opening_balances": report["opening_balances"],
+            "closing_balances": report["closing_balances"],
             "total_inflows": report["total_receipts"],
             "total_outflows": report["total_payments"],
             "net_cash_movement": report["net_movement"],
