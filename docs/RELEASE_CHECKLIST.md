@@ -41,13 +41,13 @@ A green frontend build or successful deployment alone is not sufficient for fina
 - [ ] Full offline operation across all modules, broader draft capture, reference-data strategy, complete conflict resolution, device-loss recovery and independent offline security testing remain outstanding. Financial posting, payments, payroll approval, reconciliation and M-Pesa remain online-only. See `docs/OFFLINE_SYNC_DESIGN.md`.
 - [x] Automated tenant-isolation tests added for bank statements, supplier bills, payroll employee lists and C2B reconciliation; payroll employee/settings/run reads are restricted to authorised finance roles.
 - [x] CI dependency audits for Python and npm pass with zero known vulnerabilities on the resolved dependency set.
-- [ ] Independent security review, penetration testing and complete tenant-isolation programme remain outstanding.
+- [ ] Independent security review, penetration testing and complete tenant-isolation programme remain outstanding; scope and evidence requirements are in `docs/SECURITY_REVIEW_PLAN.md`.
 - [x] PostgreSQL backup/restore procedure documented in `docs/BACKUP_RESTORE_RUNBOOK.md`.
 - [x] CI performs a PostgreSQL custom-format dump, restores it to an isolated disposable database and verifies the restored Django migration table.
 - [ ] Managed production backup schedule, retention, monitoring, PITR and a witnessed production restore drill remain outstanding.
 - [ ] Pin frontend dependency versions and commit `package-lock.json`; add a reproducible Python dependency lock before production release.
 - [x] Same-origin Render Docker deployment blueprint prepared; it serves the React PWA and Django API together to preserve first-party session/CSRF cookies. See `docs/RENDER_DEPLOYMENT.md`.
-- [ ] Render service and managed PostgreSQL not yet provisioned; repository owner must approve the estimated monthly charges and connect the Render account.
+- [ ] Render service and managed PostgreSQL not yet provisioned; repository owner must connect the Render account and approve the estimated base cost of approximately US$17/month (US$7 web service + US$10 PostgreSQL), excluding taxes, bandwidth and storage growth.
 - [ ] Generated Render HTTPS host smoke-tested after provisioning. A custom domain is optional for the pilot and has not been purchased.
 - [x] St Stephen School acceptance test plan and sign-off sheet documented in `docs/ST_STEPHEN_ACCEPTANCE_TEST_PLAN.md`.
 - [ ] End-to-end school acceptance tests passed using approved test data, including supplier payables, payroll, refunds, bank reconciliation, trial balance and balance sheet reconciliation.
