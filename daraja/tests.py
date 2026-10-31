@@ -44,6 +44,35 @@ class C2BCallbackTests(TestCase):
         self.assertEqual(C2BNotification.objects.get(transaction_id="QWERTY12345").status,
                          C2BNotification.Status.RECEIVED)
 
+    def test_confirmation_rejects_non_object_payload(self):
+        response = Client().post(
+            "/api/daraja/callbacks/c2b/confirmation/",
+            data="[]", content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_confirmation_rejects_invalid_or_overprecision_amount(self):
+        client = Client()
+        with patch.dict("os.environ", {"DARAJA_SHORTCODE": "123456"}):
+            for amount in ("NaN", "Infinity", "0", "-10.00", "1.001"):
+                response = client.post(
+                    "/api/daraja/callbacks/c2b/confirmation/",
+                    data=json.dumps({
+                        "TransID": f"BAD{amount}", "TransAmount": amount,
+                        "BillRefNumber": "INV-000001", "BusinessShortCode": "123456",
+                    }),
+                    content_type="application/json",
+                )
+                self.assertEqual(response.status_code, 400, amount)
+        self.assertEqual(C2BNotification.objects.count(), 0)
+
+    def test_confirmation_rejects_oversized_payload(self):
+        response = Client().post(
+            "/api/daraja/callbacks/c2b/confirmation/",
+            data=" " * (64 * 1024 + 1), content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+
 
 class C2BReconciliationTests(TestCase):
     def setUp(self):
