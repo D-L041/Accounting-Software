@@ -14,7 +14,7 @@ export default function PayrollPanel({schoolId,currency,periods,accounts,canWrit
  const [settings,setSettings]=useState<Row|null>(null);
  const [rules,setRules]=useState<Row[]>([]);
  const [bands,setBands]=useState<Row[]>([]);
- const [employee,setEmployee]=useState({employee_number:"",first_name:"",last_name:"",job_title:"",basic_salary:"",hire_date:today(),is_resident:true});
+ const [employee,setEmployee]=useState({employee_number:"",first_name:"",last_name:"",job_title:"",basic_salary:"",regular_cash_allowances:"0.00",monthly_other_deductions:"0.00",hire_date:today(),is_resident:true});
  const [period,setPeriod]=useState("");
  const [month,setMonth]=useState(monthStart());
  const [payDate,setPayDate]=useState(today());
@@ -34,7 +34,7 @@ export default function PayrollPanel({schoolId,currency,periods,accounts,canWrit
  useEffect(()=>{void refresh().catch(e=>setError(e.message));},[schoolId]);
  async function createEmployee(e:React.FormEvent){
   e.preventDefault();setBusy(true);setError("");
-  try{await api(`${base}/employees/`,{method:"POST",body:JSON.stringify(employee)});setEmployee({employee_number:"",first_name:"",last_name:"",job_title:"",basic_salary:"",hire_date:today(),is_resident:true});await refresh();onChanged?.();}
+  try{await api(`${base}/employees/`,{method:"POST",body:JSON.stringify(employee)});setEmployee({employee_number:"",first_name:"",last_name:"",job_title:"",basic_salary:"",regular_cash_allowances:"0.00",monthly_other_deductions:"0.00",hire_date:today(),is_resident:true});await refresh();onChanged?.();}
   catch(err){setError(err instanceof Error?err.message:"Could not add employee.");}finally{setBusy(false);}
  }
  async function saveSettings(e:React.FormEvent){
@@ -61,7 +61,7 @@ export default function PayrollPanel({schoolId,currency,periods,accounts,canWrit
     <label>Employee number<input required value={employee.employee_number} onChange={e=>setEmployee(v=>({...v,employee_number:e.target.value}))}/></label>
     <div className="form-grid"><label>First name<input required value={employee.first_name} onChange={e=>setEmployee(v=>({...v,first_name:e.target.value}))}/></label><label>Last name<input required value={employee.last_name} onChange={e=>setEmployee(v=>({...v,last_name:e.target.value}))}/></label></div>
     <label>Job title<input value={employee.job_title} onChange={e=>setEmployee(v=>({...v,job_title:e.target.value}))}/></label>
-    <div className="form-grid"><label>Basic monthly salary<input type="number" min="0" step="0.01" required value={employee.basic_salary} onChange={e=>setEmployee(v=>({...v,basic_salary:e.target.value}))}/></label><label>Hire date<input type="date" required value={employee.hire_date} onChange={e=>setEmployee(v=>({...v,hire_date:e.target.value}))}/></label></div>
+    <div className="form-grid"><label>Basic monthly salary<input type="number" min="0" step="0.01" required value={employee.basic_salary} onChange={e=>setEmployee(v=>({...v,basic_salary:e.target.value}))}/></label><label>Regular monthly cash allowances<input type="number" min="0" step="0.01" value={employee.regular_cash_allowances} onChange={e=>setEmployee(v=>({...v,regular_cash_allowances:e.target.value}))}/></label><label>Other monthly deductions<input type="number" min="0" step="0.01" value={employee.monthly_other_deductions} onChange={e=>setEmployee(v=>({...v,monthly_other_deductions:e.target.value}))}/></label><label>Hire date<input type="date" required value={employee.hire_date} onChange={e=>setEmployee(v=>({...v,hire_date:e.target.value}))}/></label></div>
     <label className="check-label"><input type="checkbox" checked={employee.is_resident} onChange={e=>setEmployee(v=>({...v,is_resident:e.target.checked}))}/> Resident individual (eligible for personal relief)</label>
     <button className="primary" disabled={busy}>{busy?"Saving…":"Add employee"}</button>
    </form>
@@ -82,8 +82,8 @@ export default function PayrollPanel({schoolId,currency,periods,accounts,canWrit
    </form>
   </div>
   <div className="entry-form"><h3>Employees ({employees.length})</h3>
-   <div className="table-wrap"><table><thead><tr><th>Number</th><th>Employee</th><th>Role</th><th>Monthly salary</th><th>Resident</th><th>Status</th></tr></thead><tbody>
-    {employees.map(e=><tr key={e.id}><td>{e.employee_number}</td><td>{e.full_name}</td><td>{e.job_title||"—"}</td><td>{money(e.basic_salary,currency)}</td><td>{e.is_resident?"Yes":"No"}</td><td>{e.is_active?"Active":"Inactive"}</td></tr>)}
+   <div className="table-wrap"><table><thead><tr><th>Number</th><th>Employee</th><th>Role</th><th>Basic salary</th><th>Cash allowances</th><th>Resident</th><th>Status</th></tr></thead><tbody>
+    {employees.map(e=><tr key={e.id}><td>{e.employee_number}</td><td>{e.full_name}</td><td>{e.job_title||"—"}</td><td>{money(e.basic_salary,currency)}</td><td>{money(e.regular_cash_allowances,currency)}</td><td>{e.is_resident?"Yes":"No"}</td><td>{e.is_active?"Active":"Inactive"}</td></tr>)}
    </tbody></table></div>
   </div>
   <div className="entry-form"><h3>Payroll runs</h3>
