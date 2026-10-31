@@ -24,7 +24,8 @@ A green frontend build or successful deployment alone is not sufficient for fina
 - [x] Payroll statutory review found and corrected the NSSF PAYE deductibility rule; regression tests include January/February 2026 and an independent KES 100,000 benchmark.
 - [x] Effective-dated NITA employer levy (KES 50 per active employee per month), separate liability mapping and employer-cost posting implemented; it is not deducted from employee net pay.
 - [x] Audited CSV payroll register and PAYE, NSSF, SHIF, AHL and NITA schedules implemented; statutory schedules require a posted payroll run.
-- [ ] Full payroll remains incomplete: employee-declared insurance relief, mortgage interest, post-retirement medical fund, additional pension claims, tax exemption certificates, taxable benefits in kind, official KRA P10/iTax and agency-format exports, and independent Kenyan payroll-practitioner sign-off are outstanding. See `docs/PAYROLL_STATUTORY_REVIEW.md`.
+- [x] Employee insurance relief, mortgage-interest deduction, post-retirement medical fund, additional registered pension deductions and verified disability tax-exemption certificate support implemented with effective monthly caps and payroll-line snapshots; claim evidence references and owner/admin verification are required.
+- [ ] Full payroll remains incomplete: taxable benefits in kind, official KRA P10/iTax and agency-format exports, independent Kenyan payroll-practitioner sign-off and school parallel-run acceptance remain outstanding. See `docs/PAYROLL_STATUTORY_REVIEW.md`.
 - [x] Immutable audit events for core financial posting actions and a school-scoped audit log.
 - [x] Purchase orders with item lines, school-configurable threshold/role rules, sequential multi-step approvals, creator/approver separation and audit events implemented.
 - [ ] Complete CRUD audit coverage and independent procurement workflow review remain outstanding.
