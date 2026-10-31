@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from ledger.models import Account, FinancialPeriod
-from .models import Employee, PayrollLine, PayrollRun, PayrollSettings
+from .models import Employee, PayrollLine, PayrollRule, PayrollRun, PayrollSettings, PayrollTaxBand
 
 
 class EmployeeSerializer(serializers.ModelSerializer):
@@ -93,3 +93,20 @@ class PayrollRunSerializer(serializers.ModelSerializer):
 
     def get_employee_count(self, obj):
         return obj.lines.count()
+
+class PayrollRuleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PayrollRule
+        fields = [
+            "id", "code", "effective_from", "effective_to", "employee_rate",
+            "employer_rate", "ceiling", "minimum_employee", "fixed_employee",
+            "deductible_for_paye", "created_at",
+        ]
+        read_only_fields = ["id", "created_at"]
+
+
+class PayrollTaxBandSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PayrollTaxBand
+        fields = ["id", "effective_from", "effective_to", "lower_bound", "upper_bound", "rate"]
+        read_only_fields = ["id"]
