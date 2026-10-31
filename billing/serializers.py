@@ -4,7 +4,7 @@ from rest_framework import serializers
 
 from accounts.models import Student
 from ledger.models import Account
-from .models import FeeItem, FeeSchedule, FeeScheduleLine, Invoice, InvoiceLine, Payment, SchoolBillingSettings
+from .models import CreditNote, CreditNoteLine, FeeItem, FeeSchedule, FeeScheduleLine, Invoice, InvoiceLine, Payment, PaymentRefund, SchoolBillingSettings
 
 
 class FeeItemSerializer(serializers.ModelSerializer):
@@ -226,3 +226,94 @@ class FeeScheduleSerializer(serializers.ModelSerializer):
                 for line in lines:
                     FeeScheduleLine.objects.create(schedule=instance, **line)
         return instance
+
+class CreditNoteLineInputSerializer(serializers.Serializer):
+    invoice_line = serializers.PrimaryKeyRelatedField(queryset=InvoiceLine.objects.all())
+    amount = serializers.DecimalField(max_digits=14, decimal_places=2, min_value=Decimal("0.01"))
+
+
+class CreditNoteSerializer(serializers.ModelSerializer):
+    lines = CreditNoteLineInputSerializer(many=True, write_only=True)
+    invoice_number = serializers.CharField(source="invoice.invoice_number", read_only=True)
+    amount = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
+    line_items = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CreditNote
+        fields = [
+            "id", "invoice", "invoice_number", "period", "credit_note_number",
+            "credit_date", "reason", "status", "amount", "lines", "line_items",
+            "journal_entry", "created_by", "created_at",
+        ]
+        read_only_fields = ["id", "credit_note_number", "status", "amount", "line_items", "journal_entry", "created_by", "created_at"]
+
+    def get_line_items(self, obj):
+        return [{
+            "id": line.id, "invoice_line": line.invoice_line_id,
+            "description": line.invoice_line.description or line.invoice_line.fee_item.name,
+            "original_amount": line.invoice_line.amount, "amount": line.amount,
+        } for line in obj.lines.select_related("invoice_line__fee_item")]
+
+    def validate(self, attrs):
+        school = self.context["school"]
+        invoice = attrs.get("invoice")
+        period = attrs.get("period")
+        if invoice and invoice.school_id != school.id:
+            raise serializers.ValidationError({"invoice": "Invoice must belong to this school."})
+        if invoice and invoice.status in {Invoice.Status.DRAFT, Invoice.Status.VOID}:
+            raise serializers.ValidationError({"invoice": "Select an issued invoice."})
+        if period and period.school_id != school.id:
+            raise serializers.ValidationError({"period": "Financial period must belong to this school."})
+        for line in attrs.get("lines", []):
+            if invoice and line["invoice_line"].invoice_id != invoice.id:
+                raise serializers.ValidationError({"lines": "Each credit line must refer to the selected invoice."})
+        return attrs
+
+    def create(self, validated_data):
+        from django.db import transaction
+        from .services import _next_number
+        school = self.context["school"]
+        lines = validated_data.pop("lines")
+        with transaction.atomic():
+            number = _next_number(CreditNote, school, "CN", "credit_note_number")
+            note = CreditNote.objects.create(
+                school=school, credit_note_number=number,
+                created_by=self.context["request"].user, **validated_data,
+            )
+            for line in lines:
+                CreditNoteLine.objects.create(credit_note=note, **line)
+        return note
+
+
+class PaymentRefundInputSerializer(serializers.Serializer):
+    invoice = serializers.PrimaryKeyRelatedField(queryset=Invoice.objects.all())
+    period = serializers.PrimaryKeyRelatedField(queryset=FinancialPeriod.objects.all())
+    payment_account = serializers.PrimaryKeyRelatedField(queryset=Account.objects.all())
+    refund_date = serializers.DateField()
+    amount = serializers.DecimalField(max_digits=14, decimal_places=2, min_value=Decimal("0.01"))
+    reference = serializers.CharField(required=False, allow_blank=True, max_length=100)
+
+    def validate(self, attrs):
+        school = self.context["school"]
+        for field in ("invoice", "period", "payment_account"):
+            if attrs[field].school_id != school.id:
+                raise serializers.ValidationError({field: f"{field.title()} must belong to this school."})
+        if attrs["payment_account"].category != Account.Category.ASSET:
+            raise serializers.ValidationError({"payment_account": "Choose an asset account."})
+        return attrs
+
+
+class PaymentRefundSerializer(serializers.ModelSerializer):
+    invoice_number = serializers.CharField(source="invoice.invoice_number", read_only=True)
+    payment_receipt = serializers.CharField(source="payment.receipt_number", read_only=True)
+    payment_account_name = serializers.CharField(source="payment_account.name", read_only=True)
+
+    class Meta:
+        model = PaymentRefund
+        fields = [
+            "id", "payment", "payment_receipt", "invoice", "invoice_number",
+            "period", "payment_account", "payment_account_name", "refund_date",
+            "amount", "reference", "journal_entry", "recorded_by", "created_at",
+        ]
+        read_only_fields = fields
+
