@@ -4,7 +4,7 @@ Precious SchoolBooks is split into a static React frontend and a Django API back
 
 ## Container/API
 
-The repository includes a production-oriented Dockerfile and Procfile. The image installs the WSGI server, serves Django static assets through WhiteNoise, and exposes `/api/health/` as a database-aware health check.
+The repository includes a production-oriented Dockerfile and Procfile. CI builds the API container on every pull-request update. For local development, run `docker compose up --build` from the repository root, then run the Vite frontend from `frontend` with `VITE_API_BASE_URL=http://localhost:8000`. The image installs the WSGI server, serves Django static assets through WhiteNoise, and exposes `/api/health/` as a database-aware health check.
 
 Required runtime environment variables:
 
