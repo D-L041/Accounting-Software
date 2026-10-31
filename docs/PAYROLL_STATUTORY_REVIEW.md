@@ -42,10 +42,10 @@ This benchmark is encoded in `payroll/tests.py`. It assumes the stated statutory
 2. Valid tax exemption certificates and disability-related exemptions are not modelled.
 3. Taxable non-cash benefits (including housing, car, low-interest loans and taxable benefits/facilities), meal benefits and other irregular earnings are not fully captured.
 4. NITA industrial training levy is now calculated at the effective-dated KES 50 per active employee per month and posted as an employer cost to a separate NITA payable account. The rate, employer-only treatment and remittance timing must still be rechecked for each payroll month; the complete statutory remittance schedule is not yet implemented.
-5. Payroll lacks complete statutory remittance schedules, P10/iTax export, SHA remittance support, NSSF schedules and NITA reporting.
+5. Payroll now provides audited CSV exports for the payroll register and PAYE, NSSF, SHIF, Affordable Housing Levy and NITA schedules. Statutory schedules are available only after the payroll run is posted. These are management/remittance working schedules, not KRA P10/iTax upload files or agency-certified remittance files; official formats, PIN/ID validation, SHA/NSSF/NITA portal reconciliation and remittance references still require implementation and review.
 6. Independent review by a Kenyan payroll/tax practitioner and parallel-run comparison against authoritative payroll calculations are still required.
 
-Do not use this module to approve or pay live payroll until these gaps are resolved, statutory sources rechecked for the pay period, and the school signs off the parallel-run results.
+Do not use this module to approve or pay live payroll until employee-specific claims and exemptions are implemented, statutory exports are reconciled to the current agency formats, statutory sources are rechecked for the pay period, and a Kenyan payroll practitioner and the school sign off parallel-run results.
 
 ## Official sources
 
