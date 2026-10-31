@@ -33,7 +33,7 @@ Use the correct financial period for the date of each transaction. Locked period
 - Record each payment against one or more open invoices using cash, bank or M-Pesa as the method. Enter the M-Pesa/bank reference when available.
 - Download the PDF receipt from **Payments & Receipts**.
 
-M-Pesa is currently recorded from a reference entered by the user. Automated Safaricom Daraja callbacks and statement matching are not yet implemented.
+M-Pesa receipts are still entered manually using a transaction reference. Safaricom Daraja callbacks are not yet connected.
 
 ## Expenses
 
@@ -41,7 +41,36 @@ M-Pesa is currently recorded from a reference entered by the user. Automated Saf
 - Record an expense as a draft with its date, period, category, amount, payment method and optional supplier.
 - Review the details and post the expense. Posting creates the balanced ledger entry and makes the posted expense immutable.
 
-Supplier bills/payables, purchase approvals and procurement are not yet implemented.
+### Supplier bills and payables
+
+- Create a supplier bill draft with its supplier, supplier invoice number, bill date, due date, expense category, financial period, amount and accounts-payable liability account.
+- Submit the bill for approval. The submitter cannot approve the same bill.
+- Only a school owner or administrator can approve a submitted bill.
+- Post an approved bill to record Dr Expense / Cr Accounts Payable.
+- Record full or partial payments against posted bills. Each payment reduces the payable and posts Dr Accounts Payable / Cr the selected cash, bank or M-Pesa account.
+- Submitted, approved and posted bills cannot be edited. Posted payments are immutable.
+
+## Bank reconciliation
+
+The bank statement API supports statement headers and transaction lines, matching statement lines to posted ledger lines, arithmetic checks and locking a reconciled statement. Reconciliation is currently an API workflow; a dedicated bank reconciliation screen, CSV import mapping and automated bank-feed integration remain to be completed. The existing cashbook report is not itself a reconciliation.
+
+## Credit notes and refunds
+
+- Create a draft credit note against an issued invoice and allocate amounts to its original invoice lines.
+- Post the credit note to debit fee income and credit student receivables.
+- Record a refund against a previously posted payment and the invoice allocation to which it relates.
+- A refund posts Dr Student Receivables / Cr the selected cash, bank or M-Pesa account and reopens the relevant invoice balance.
+- Credit notes and refunds are immutable once posted. They cannot exceed the original invoice-line value or payment allocation.
+
+## Staff and payroll
+
+- Register employees with staff number, names, job title, basic monthly salary and tax-residency status.
+- Configure the payroll expense and liability ledger accounts before posting a payroll run.
+- Create a monthly draft payroll for an open financial period. The system applies effective-dated NSSF, SHIF, Affordable Housing Levy and PAYE rules and calculates employee net pay and employer contributions.
+- Review the payroll lines before posting. Posting creates the salary expense and statutory/payroll liabilities in the double-entry ledger.
+- Effective-dated statutory rules and PAYE bands can be read by school members; only school owners and administrators can create school-specific overrides.
+
+Payroll currently covers basic monthly salary and the listed statutory calculations. It does not yet cover all allowances, benefits-in-kind, insurance relief, mortgage interest, voluntary pension schemes, leave, overtime, advances, payslip delivery or statutory return filing. Confirm current rules and employee-specific deductions with a qualified Kenyan payroll/accounting professional before using live payroll.
 
 ## Reports and audit
 
@@ -53,8 +82,9 @@ Supplier bills/payables, purchase approvals and procurement are not yet implemen
 
 - This is a development build and must not be used for live school records until the production release checklist is approved.
 - Transactions are disabled while offline. Offline data storage and synchronisation are not implemented.
-- Payroll, statutory deductions, budgets, supplier payables, bank reconciliation, credit notes/refunds and automated M-Pesa integration remain outstanding.
+- Payroll, supplier payables, credit notes/refunds and bank reconciliation have initial tested API workflows. The payroll feature does not yet cover every employee benefit or deduction, and bank reconciliation still needs a dedicated user interface and bank-file import workflow.
+- Automated Safaricom Daraja callbacks, full offline/PWA queue and conflict resolution remain outstanding.
 - Opening balances must be entered through controlled journal entries; reports do not invent them.
-- Posted journal entries and expenses cannot be edited. Controlled reversal/adjustment workflows are still being developed.
+- Posted journal entries, expenses, supplier bill payments, credit notes, refunds and payroll runs are immutable. Use controlled reversal/adjustment workflows; do not edit posted financial history.
 
 Always test with synthetic data in staging before any live rollout.
