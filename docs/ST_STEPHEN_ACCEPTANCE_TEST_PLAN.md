@@ -63,12 +63,12 @@ Record the release commit, environment, date, test operator, school representati
 
 ## F. Bank reconciliation and cash flow
 
-1. Import/capture a test bank statement with opening and closing balances.
+1. Download the bank CSV template, import a synthetic statement file and map date, description, amount and reference columns; also capture a test statement with opening and closing balances.
 2. Match statement lines to posted bank journal lines.
 3. Attempt a wrong-amount match, duplicate match, unmatched reconciliation and statement arithmetic mismatch.
 4. Reconcile a fully matched statement and confirm it becomes locked/audited.
 5. Verify cash-flow opening balance is derived from previously posted cash/bank/M-Pesa entries and closing balance equals opening plus net movement.
-6. Record CSV import and bank-feed gaps; manual statement entry/matching is the current supported path.
+6. Test malformed dates, missing columns, quoted descriptions, negative withdrawals, DR/CR suffixes and invalid amounts. Record unsupported bank-specific layouts and bank-feed gaps.
 
 **Pass evidence:** reconciled statement, match report, cash-flow report and ledger tie-out.
 
