@@ -83,6 +83,7 @@ export default function App() {
   const [reportType,setReportType] = useState("trial-balance");
   const [invoices,setInvoices] = useState<Row[]>([]);
   const [form,setForm] = useState<Record<string,string>>({});
+  const [scheduleLines,setScheduleLines] = useState<{fee_item:string;amount:string}[]>([{fee_item:"",amount:""}]);
   const [newSchool,setNewSchool] = useState({name:"",code:"",address:"",phone:"",email:""});
 
   const schoolBase = school ? `/api/schools/${school.id}` : "";
@@ -170,10 +171,10 @@ export default function App() {
     try { await logout(); } finally { setUser(null); setSchool(null); setRows([]); }
   }
   async function submitAction(path:string, payload:Row, message:string) {
-    if(!navigator.onLine) { setError("You are offline. Transactions are disabled until the secure connection is restored."); return; }
+    if(!navigator.onLine) { setError("You are offline. Transactions are disabled until the secure connection is restored."); return false; }
     setBusy(true); clearMessages();
-    try { await api(path,{method:"POST",body:JSON.stringify(payload)}); setSuccess(message); setForm({}); await loadData(); }
-    catch(e) { setError(errorText(e)); }
+    try { await api(path,{method:"POST",body:JSON.stringify(payload)}); setSuccess(message); setForm({}); await loadData(); return true; }
+    catch(e) { setError(errorText(e)); return false; }
     finally { setBusy(false); }
   }
   async function createSchool(event:FormEvent) {
@@ -193,12 +194,13 @@ export default function App() {
   }
   async function createFeeSchedule(event:FormEvent) {
     event.preventDefault();
-    await submitAction(schoolBase + "/billing/fee-schedules/",{
+    const saved = await submitAction(schoolBase + "/billing/fee-schedules/",{
       academic_year:Number(form.schedule_year),classroom:Number(form.schedule_class),
       period:Number(form.schedule_period),term_name:form.schedule_term,
       invoice_date:form.schedule_invoice_date||today,due_date:form.schedule_due_date||today,
-      lines:[{fee_item:Number(form.schedule_fee_item),amount:form.schedule_amount}],
+      lines:scheduleLines.filter(x=>x.fee_item&&x.amount).map(x=>({fee_item:Number(x.fee_item),amount:x.amount})),
     },"Fee schedule created.");
+    if(saved) setScheduleLines([{fee_item:"",amount:""}]);
   }
   async function generateScheduleInvoices(id:number) {
     setBusy(true); clearMessages();
@@ -330,8 +332,8 @@ export default function App() {
             <label>Term name<input required value={form.schedule_term||""} onChange={e=>setField("schedule_term",e.target.value)} placeholder="Term 1"/></label>
             <label>Invoice date<input type="date" required value={form.schedule_invoice_date||today} onChange={e=>setField("schedule_invoice_date",e.target.value)}/></label>
             <label>Due date<input type="date" required value={form.schedule_due_date||today} onChange={e=>setField("schedule_due_date",e.target.value)}/></label>
-            <label>Fee item<select required value={form.schedule_fee_item||""} onChange={e=>setField("schedule_fee_item",e.target.value)}><option value="">Select fee item</option>{feeItems.filter(x=>x.is_active).map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
-            <label>Amount per learner (KES)<input type="number" min="0.01" step="0.01" required value={form.schedule_amount||""} onChange={e=>setField("schedule_amount",e.target.value)}/></label>
+            {scheduleLines.map((line,index)=><div className="schedule-line" key={index}><label>Fee item<select required value={line.fee_item} onChange={e=>setScheduleLines(old=>old.map((x,i)=>i===index?{...x,fee_item:e.target.value}:x))}><option value="">Select fee item</option>{feeItems.filter(x=>x.is_active).map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label><label>Amount per learner (KES)<input type="number" min="0.01" step="0.01" required value={line.amount} onChange={e=>setScheduleLines(old=>old.map((x,i)=>i===index?{...x,amount:e.target.value}:x))}/></label>{scheduleLines.length>1&&<button type="button" className="small-action" onClick={()=>setScheduleLines(old=>old.filter((_,i)=>i!==index))}>Remove line</button>}</div>)}
+            <button type="button" className="secondary" onClick={()=>setScheduleLines(old=>[...old,{fee_item:"",amount:""}])}>Add another fee item</button>
           </div><button className="primary" disabled={busy||!years.length||!classrooms.length||!periods.length||!feeItems.length}>Save fee schedule</button></form>
           <div className="table-wrap"><table><thead><tr><th>Class</th><th>Academic year</th><th>Term</th><th>Active learners</th><th>Draft invoices generated</th><th>Fee items</th><th>Action</th></tr></thead><tbody>
             {feeSchedules.map(schedule=><tr key={schedule.id}><td>{schedule.classroom_name||classrooms.find(x=>x.id===schedule.classroom)?.name||"Class"}</td><td>{schedule.academic_year_name||years.find(x=>x.id===schedule.academic_year)?.name||"—"}</td><td>{schedule.term_name}</td><td>{schedule.student_count}</td><td>{schedule.generated_invoice_count}</td><td>{(schedule.line_items||[]).map((x:Row)=>x.fee_item_name+" ("+money(x.amount,school.currency)+")").join(", ")}</td><td><button className="small-action" disabled={busy||!schedule.is_active||!schedule.student_count} onClick={()=>void generateScheduleInvoices(schedule.id)}>Generate drafts</button></td></tr>)}
