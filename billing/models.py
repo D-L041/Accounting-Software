@@ -168,6 +168,7 @@ class Payment(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["school", "receipt_number"], name="unique_receipt_number_school"),
             models.CheckConstraint(condition=Q(amount__gt=0), name="payment_amount_positive"),
+            models.UniqueConstraint(fields=["school", "method", "transaction_reference"], condition=~Q(transaction_reference=""), name="unique_payment_external_ref_school"),
         ]
 
     def clean(self):
