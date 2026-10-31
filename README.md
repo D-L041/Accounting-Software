@@ -47,6 +47,7 @@ See:
 - `docs/IMPLEMENTATION_PLAN.md` for phased delivery.
 - `docs/DEVELOPMENT.md` for local setup.
 - `docs/RELEASE_CHECKLIST.md` for production acceptance gates.
+- `docs/USER_GUIDE.md` for the current school administrator workflows.
 
 ## Local development
 
