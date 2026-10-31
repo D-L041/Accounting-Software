@@ -135,21 +135,22 @@ def build_balance_sheet(period):
 
 
 def build_cashbook(period):
-    """List posted movements through the school's configured cash and clearing accounts.
-
-    The report deliberately starts movement balances at zero; it does not invent
-    opening balances or claim to be a bank statement reconciliation.
-    """
+    """Return posted cash, bank and M-Pesa movements with ledger-derived opening balances."""
     from billing.models import SchoolBillingSettings
 
     settings = SchoolBillingSettings.objects.filter(school=period.school).first()
+    zero = Decimal("0.00")
     if settings is None:
         return {
             "period": period.name,
             "transactions": [],
-            "total_receipts": Decimal("0.00"),
-            "total_payments": Decimal("0.00"),
-            "net_movement": Decimal("0.00"),
+            "total_receipts": zero,
+            "total_payments": zero,
+            "net_movement": zero,
+            "opening_balance_total": zero,
+            "closing_balance_total": zero,
+            "opening_balances": [],
+            "closing_balances": [],
             "opening_balance_included": False,
         }
 
@@ -158,6 +159,43 @@ def build_cashbook(period):
         settings.bank_account_id,
         settings.mpesa_account_id,
     ]))
+    opening_lines = (
+        JournalLine.objects.filter(
+            entry__school=period.school,
+            entry__posted=True,
+            entry__entry_date__lt=period.starts_on,
+            account_id__in=account_ids,
+        )
+        .select_related("account")
+        .order_by("entry__entry_date", "entry_id", "id")
+    )
+    balances = {account_id: zero for account_id in account_ids}
+    accounts = {}
+    for line in opening_lines:
+        balances[line.account_id] += line.debit - line.credit
+        accounts[line.account_id] = line.account
+
+    for account_id in account_ids:
+        accounts.setdefault(
+            account_id,
+            next(
+                account for account in (
+                    settings.cash_account, settings.bank_account, settings.mpesa_account
+                ) if account.pk == account_id
+            ),
+        )
+
+    opening_balances = [
+        {
+            "account_id": account_id,
+            "account_code": accounts[account_id].code,
+            "account_name": accounts[account_id].name,
+            "balance": balances[account_id],
+        }
+        for account_id in account_ids
+    ]
+    opening_balance_total = sum(balances.values(), zero)
+
     lines = (
         JournalLine.objects.filter(
             entry__school=period.school,
@@ -168,10 +206,9 @@ def build_cashbook(period):
         .select_related("entry", "account")
         .order_by("entry__entry_date", "entry_id", "id")
     )
-    balances = {account_id: Decimal("0.00") for account_id in account_ids}
     transactions = []
-    total_receipts = Decimal("0.00")
-    total_payments = Decimal("0.00")
+    total_receipts = zero
+    total_payments = zero
     for line in lines:
         balances[line.account_id] += line.debit - line.credit
         total_receipts += line.debit
@@ -187,11 +224,25 @@ def build_cashbook(period):
             "credit": line.credit,
             "movement_balance": balances[line.account_id],
         })
+
+    closing_balances = [
+        {
+            "account_id": account_id,
+            "account_code": accounts[account_id].code,
+            "account_name": accounts[account_id].name,
+            "balance": balances[account_id],
+        }
+        for account_id in account_ids
+    ]
     return {
         "period": period.name,
         "transactions": transactions,
         "total_receipts": total_receipts,
         "total_payments": total_payments,
         "net_movement": total_receipts - total_payments,
-        "opening_balance_included": False,
+        "opening_balance_total": opening_balance_total,
+        "closing_balance_total": sum(balances.values(), zero),
+        "opening_balances": opening_balances,
+        "closing_balances": closing_balances,
+        "opening_balance_included": True,
     }
