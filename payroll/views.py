@@ -13,7 +13,7 @@ from .serializers import EmployeeSerializer, PayrollRunInputSerializer, PayrollR
 from .services import create_payroll_run, post_payroll_run
 
 
-class SchoolPayrollViewSet(viewsets.GenericViewSet):
+class SchoolPayrollViewSet:
     permission_classes = [permissions.IsAuthenticated]
     write_roles = {
         SchoolMembership.Role.OWNER, SchoolMembership.Role.ADMIN,
