@@ -68,7 +68,7 @@ export default function BankReconciliationPanel({ schoolId, currency, periods, a
   return <section className="data-panel">
     <div className="panel-heading"><div><h2>Bank reconciliation</h2><p>Import statement lines, match them to posted cash/bank ledger entries, then reconcile.</p></div><button className="secondary" onClick={()=>void refresh()}>Refresh</button></div>
     {error && <div className="error-banner">{error}</div>}
-    {canWrite && <form className="entry-form" onSubmit={createStatement}>
+    {canWrite && <form className="entry-panel" onSubmit={createStatement}>
       <h3>New bank statement</h3>
       <div className="form-grid">
         <label>Bank / cash account<select required value={account} onChange={e=>setAccount(e.target.value)}><option value="">Select account</option>{assetAccounts.map(a=><option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}</select></label>
@@ -89,7 +89,7 @@ export default function BankReconciliationPanel({ schoolId, currency, periods, a
       {lines.length>0 && <ul>{lines.map((l,i)=><li key={i}>{l.transaction_date} · {l.description} · {money(l.amount,currency)} <button type="button" className="text-button" onClick={()=>setLines(old=>old.filter((_,n)=>n!==i))}>Remove</button></li>)}</ul>}
       <button className="primary" disabled={busy || !account || !period || !lines.length}>{busy?"Saving…":"Save statement"}</button>
     </form>}
-    <div className="entry-form">
+    <div className="entry-panel">
       <h3>Match statement transactions</h3>
       <label>Statement<select value={selectedStatement?.id || ""} onChange={e=>setSelected(e.target.value)}><option value="">Select statement</option>{statements.map(s=><option key={s.id} value={s.id}>{s.account_name} · ending {s.statement_end} · {s.status}</option>)}</select></label>
       {selectedStatement && <>
