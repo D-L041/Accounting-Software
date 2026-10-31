@@ -239,13 +239,15 @@ class BankStatement(models.Model):
         if self.period_id and self.period.school_id != self.school_id:
             errors["period"] = "Financial period must belong to this school."
         if self.statement_start and self.statement_end:
-            if self.statement_end < self.statement_start:
+            statement_start = self._meta.get_field("statement_start").to_python(self.statement_start)
+            statement_end = self._meta.get_field("statement_end").to_python(self.statement_end)
+            if statement_end < statement_start:
                 errors["statement_end"] = "Statement end must not precede its start."
-            if self.period_id and not (
-                self.period.starts_on <= self.statement_start
-                and self.statement_end <= self.period.ends_on
-            ):
-                errors["statement_start"] = "Statement dates must fall within the selected financial period."
+            if self.period_id:
+                period_start = FinancialPeriod._meta.get_field("starts_on").to_python(self.period.starts_on)
+                period_end = FinancialPeriod._meta.get_field("ends_on").to_python(self.period.ends_on)
+                if not (period_start <= statement_start and statement_end <= period_end):
+                    errors["statement_start"] = "Statement dates must fall within the selected financial period."
         if errors:
             raise ValidationError(errors)
 
