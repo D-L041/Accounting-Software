@@ -160,13 +160,15 @@ async function markNeedsAttention(db: IDBDatabase, draft: StoredDraft, message: 
 export async function discardExpenseDraft(userId: number, schoolId: number, idempotencyKey: string) {
   const db = await openDatabase();
   try {
+    const read = db.transaction("drafts", "readonly");
+    const draft = await requestResult(read.objectStore("drafts").get(idempotencyKey)) as StoredDraft | undefined;
+    if (!draft || draft.scope !== scopeFor(userId, schoolId)) return;
     const tx = db.transaction("drafts", "readwrite");
-    const store = tx.objectStore("drafts");
-    const draft = await requestResult(store.get(idempotencyKey)) as StoredDraft | undefined;
-    if (draft && draft.scope === scopeFor(userId, schoolId)) store.delete(idempotencyKey);
+    tx.objectStore("drafts").delete(idempotencyKey);
     await new Promise<void>((resolve, reject) => {
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error || new Error("Could not discard offline draft."));
+      tx.onabort = () => reject(tx.error || new Error("Offline draft discard was interrupted."));
     });
   } finally { db.close(); }
 }
