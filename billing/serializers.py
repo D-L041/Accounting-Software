@@ -81,7 +81,10 @@ class InvoiceSerializer(serializers.ModelSerializer):
         lines = validated_data.pop("lines", [])
         school = self.context["school"]
         with transaction.atomic():
-            number = _next_number(Invoice, school, "INV", "invoice_number")
+            from .models import SchoolBillingSettings
+            settings = SchoolBillingSettings.objects.filter(school=school).first()
+            prefix = settings.invoice_prefix if settings else "INV"
+            number = _next_number(Invoice, school, prefix, "invoice_number")
             invoice = Invoice.objects.create(school=school, invoice_number=number, **validated_data)
             for line in lines:
                 amount = (line["quantity"] * line["unit_amount"]).quantize(Decimal("0.01"))
