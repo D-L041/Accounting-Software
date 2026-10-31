@@ -11,7 +11,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
         model = Employee
         fields = [
             "id", "employee_number", "first_name", "last_name", "full_name",
-            "job_title", "basic_salary", "is_resident", "hire_date",
+            "job_title", "basic_salary", "regular_cash_allowances", "monthly_other_deductions", "is_resident", "hire_date",
             "is_active", "created_at",
         ]
         read_only_fields = ["id", "full_name", "created_at"]
