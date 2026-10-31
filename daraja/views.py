@@ -95,13 +95,34 @@ def c2b_confirmation(request):
 class C2BReconcileView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
-    def post(self, request, school_pk, notification_pk):
+    def get_school(self, request, school_pk):
         school = School.objects.filter(
             pk=school_pk, is_active=True,
             memberships__user=request.user, memberships__is_active=True,
         ).first()
         if not school:
             raise PermissionDenied("You do not have access to this school.")
+        return school
+
+    def get(self, request, school_pk, notification_pk=None):
+        school = self.get_school(request, school_pk)
+        invoice_refs = Invoice.objects.filter(school=school).values_list("invoice_number", flat=True)
+        notifications = C2BNotification.objects.filter(
+            bill_reference__in=invoice_refs
+        ).select_related("matched_invoice", "payment", "reconciled_by")
+        if notification_pk is not None:
+            notifications = notifications.filter(pk=notification_pk)
+        return Response([{
+            "id": item.pk, "transaction_id": item.transaction_id,
+            "bill_reference": item.bill_reference, "amount": str(item.amount),
+            "msisdn": item.msisdn, "transaction_time": item.transaction_time,
+            "status": item.status, "invoice_id": item.matched_invoice_id,
+            "payment_id": item.payment_id,
+            "receipt_number": item.payment.receipt_number if item.payment_id else None,
+        } for item in notifications[:200]])
+
+    def post(self, request, school_pk, notification_pk):
+        school = self.get_school(request, school_pk)
         try:
             notification = reconcile_c2b_notification(
                 notification_id=notification_pk, school=school, user=request.user,
