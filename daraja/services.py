@@ -191,3 +191,66 @@ def process_stk_callback(payload):
     attempt.status = StkPushAttempt.Status.POSTED
     attempt.save(update_fields=["payment", "mpesa_receipt_number", "status", "updated_at"])
     return "posted"
+
+
+@transaction.atomic
+def reconcile_c2b_notification(*, notification_id, school, user, invoice_id, confirm_statement_match):
+    from django.core.exceptions import ValidationError
+    from accounts.models import SchoolMembership
+    from auditlog.services import record_event
+    from billing.models import Payment
+    from .models import C2BNotification
+
+    membership = SchoolMembership.objects.filter(
+        school=school, user=user, is_active=True
+    ).first()
+    allowed = {
+        SchoolMembership.Role.OWNER, SchoolMembership.Role.ADMIN,
+        SchoolMembership.Role.ACCOUNTANT, SchoolMembership.Role.BURSAR,
+    }
+    if not membership or membership.role not in allowed:
+        raise ValidationError("Your school role cannot reconcile M-Pesa payments.")
+    if confirm_statement_match is not True:
+        raise ValidationError("Confirm that the transaction has been independently matched to the Safaricom statement.")
+    notification = C2BNotification.objects.select_for_update().get(pk=notification_id)
+    if notification.status == C2BNotification.Status.POSTED:
+        return notification
+    if notification.payment_id:
+        raise ValidationError("This M-Pesa transaction is already linked to a payment.")
+    invoice = Invoice.objects.select_for_update().select_related("student", "period").get(
+        pk=invoice_id, school=school
+    )
+    if invoice.invoice_number.strip().upper() != notification.bill_reference.strip().upper():
+        raise ValidationError("The M-Pesa account reference does not exactly match this invoice number.")
+    if invoice.status not in {Invoice.Status.ISSUED, Invoice.Status.PART_PAID}:
+        raise ValidationError("Only an issued invoice with an outstanding balance can receive this payment.")
+    amount = notification.amount.quantize(Decimal("0.01"))
+    if amount <= 0 or amount > invoice.balance:
+        raise ValidationError("The M-Pesa amount must be positive and cannot exceed the invoice balance.")
+    if Payment.objects.filter(
+        school=school, method=Payment.Method.MPESA,
+        transaction_reference=notification.transaction_id,
+    ).exists():
+        raise ValidationError("This M-Pesa transaction ID has already been recorded.")
+    payment = record_payment(
+        school=school, student=invoice.student, payment_date=timezone.localdate(),
+        method=Payment.Method.MPESA, amount=amount,
+        allocations=[{"invoice_id": invoice.pk, "amount": amount}],
+        user=user, transaction_reference=notification.transaction_id,
+        notes=f"Daraja C2B {notification.transaction_id}",
+    )
+    notification.matched_invoice = invoice
+    notification.payment = payment
+    notification.reconciled_by = user
+    notification.reconciled_at = timezone.now()
+    notification.status = C2BNotification.Status.POSTED
+    notification.save(update_fields=[
+        "matched_invoice", "payment", "reconciled_by", "reconciled_at", "status"
+    ])
+    record_event(
+        school=school, actor=user, action="MPESA_C2B_RECONCILED",
+        entity_type="C2BNotification", entity_id=notification.pk,
+        summary=f"Reconciled M-Pesa transaction {notification.transaction_id}",
+        metadata={"invoice_id": invoice.pk, "payment_id": payment.pk, "amount": str(amount)},
+    )
+    return notification
