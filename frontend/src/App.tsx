@@ -149,6 +149,10 @@ export default function App() {
       await refreshSession(); setSuccess("School workspace created.");
     } catch(e) { setError(errorText(e)); } finally { setBusy(false); }
   }
+  async function createClassroom(event:FormEvent) {
+    event.preventDefault();
+    await submitAction(schoolBase + "/classrooms/",{academic_year:Number(form.class_year),name:form.class_name,stream:form.class_stream||"",class_teacher:form.class_teacher||""},"Class or stream created.");
+  }
   async function createStudent(event:FormEvent) {
     event.preventDefault();
     await submitAction(`${schoolBase}/students/`,{admission_number:form.admission_number,first_name:form.first_name,last_name:form.last_name,middle_name:form.middle_name||"",guardian_name:form.guardian_name||"",guardian_phone:form.guardian_phone||"",admission_date:form.admission_date||today,classroom:form.classroom?Number(form.classroom):null},"Student record created.");
@@ -191,6 +195,10 @@ export default function App() {
   async function createPayment(event:FormEvent) {
     event.preventDefault();
     await submitAction(`${schoolBase}/billing/payments/`,{student:Number(form.student),payment_date:form.payment_date||today,method:form.method||"MPESA",amount:form.amount,transaction_reference:form.transaction_reference||"",notes:form.payment_notes||"",allocations:[{invoice_id:Number(form.invoice_id),amount:form.amount}]},"Payment received and receipt recorded.");
+  }
+  async function createSupplier(event:FormEvent) {
+    event.preventDefault();
+    await submitAction(schoolBase + "/expenses/suppliers/",{name:form.supplier_name,contact_person:form.contact_person||"",phone:form.supplier_phone||"",email:form.supplier_email||"",tax_pin:form.tax_pin||"",address:form.supplier_address||""},"Supplier saved.");
   }
   async function createExpense(event:FormEvent) {
     event.preventDefault();
