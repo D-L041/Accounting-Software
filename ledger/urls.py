@@ -1,9 +1,10 @@
 from django.urls import path
 
 from .views import AccountViewSet, FinancialPeriodViewSet, JournalEntryViewSet
-from .report_views import BalanceSheetView, IncomeExpenditureView, TrialBalanceView
+from .report_views import BalanceSheetView, CashbookView, IncomeExpenditureView, TrialBalanceView
 
 urlpatterns = [
+    path("reports/cashbook/", CashbookView.as_view(), name="ledger-cashbook"),
     path("reports/trial-balance/", TrialBalanceView.as_view(), name="ledger-trial-balance"),
     path("reports/income-expenditure/", IncomeExpenditureView.as_view(), name="ledger-income-expenditure"),
     path("reports/balance-sheet/", BalanceSheetView.as_view(), name="ledger-balance-sheet"),
