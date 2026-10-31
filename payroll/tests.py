@@ -36,6 +36,9 @@ class PayrollWorkflowTests(TestCase):
         self.housing = Account.objects.create(
             school=self.school, code="2140", name="Housing Levy Payable", category="LIABILITY"
         )
+        self.other_deductions = Account.objects.create(
+            school=self.school, code="2150", name="Other Deductions Payable", category="LIABILITY"
+        )
         self.employee = Employee.objects.create(
             school=self.school, employee_number="STF001", first_name="Jane",
             last_name="Teacher", job_title="Teacher", basic_salary="50000.00",
@@ -54,6 +57,7 @@ class PayrollWorkflowTests(TestCase):
                 "nssf_payable_account": self.nssf.pk,
                 "shif_payable_account": self.shif.pk,
                 "housing_levy_payable_account": self.housing.pk,
+                "other_deductions_payable_account": self.other_deductions.pk,
             }, format="json",
         )
 
@@ -123,6 +127,7 @@ class PayrollWorkflowTests(TestCase):
                 "nssf_payable_account": self.nssf.pk,
                 "shif_payable_account": self.shif.pk,
                 "housing_levy_payable_account": self.housing.pk,
+                "other_deductions_payable_account": self.other_deductions.pk,
             }, format="json",
         )
         self.assertEqual(response.status_code, 400)
