@@ -1,5 +1,6 @@
 import json
 import os
+from decimal import Decimal, InvalidOperation
 
 from django.core.exceptions import ImproperlyConfigured, ValidationError as DjangoValidationError
 from django.db import IntegrityError, transaction
@@ -34,17 +35,29 @@ class StkPushView(APIView):
         return Response({"id": attempt.pk, "checkout_request_id": attempt.checkout_request_id, "status": attempt.status, "amount": str(attempt.amount)}, status=status.HTTP_201_CREATED)
 
 
+MAX_CALLBACK_BODY_BYTES = 64 * 1024
+
+
+def _decode_callback_payload(request):
+    if len(request.body) > MAX_CALLBACK_BODY_BYTES:
+        raise ValueError("Callback payload is too large.")
+    payload = json.loads(request.body.decode("utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("Callback payload must be a JSON object.")
+    return payload
+
+
 @csrf_exempt
 def stk_callback(request):
     if request.method != "POST":
         return JsonResponse({"ResultCode": 1, "ResultDesc": "POST required"}, status=405)
     try:
-        payload = json.loads(request.body.decode("utf-8"))
+        payload = _decode_callback_payload(request)
         result = process_stk_callback(payload)
     except (ValueError, UnicodeDecodeError):
-        return JsonResponse({"ResultCode": 1, "ResultDesc": "Invalid JSON"}, status=400)
-    except (DjangoValidationError, ImproperlyConfigured, IntegrityError) as exc:
-        # Return success to Safaricom only after durable callback capture; failures remain for retry/reconciliation.
+        return JsonResponse({"ResultCode": 1, "ResultDesc": "Invalid callback payload"}, status=400)
+    except (DjangoValidationError, ImproperlyConfigured, IntegrityError):
+        # Payment posting remains protected by STK Query verification in the service.
         return JsonResponse({"ResultCode": 0, "ResultDesc": "Callback received for reconciliation"})
     return JsonResponse({"ResultCode": 0, "ResultDesc": f"Callback {result}"})
 
@@ -54,11 +67,16 @@ def c2b_validation(request):
     if request.method != "POST":
         return JsonResponse({"ResultCode": "C2B00011", "ResultDesc": "POST required"}, status=405)
     try:
-        payload = json.loads(request.body.decode("utf-8"))
+        payload = _decode_callback_payload(request)
         expected_shortcode = os.environ.get("DARAJA_SHORTCODE", "").strip()
         received_shortcode = str(payload.get("BusinessShortCode", "")).strip()
         bill_reference = str(payload.get("BillRefNumber", "")).strip()
-        if not expected_shortcode or received_shortcode != expected_shortcode or not bill_reference:
+        if (
+            not expected_shortcode
+            or received_shortcode != expected_shortcode
+            or not bill_reference
+            or len(bill_reference) > 40
+        ):
             return JsonResponse({"ResultCode": "C2B00012", "ResultDesc": "Invalid shortcode or bill reference"})
     except (ValueError, UnicodeDecodeError):
         return JsonResponse({"ResultCode": "C2B00012", "ResultDesc": "Invalid validation payload"}, status=400)
@@ -72,24 +90,33 @@ def c2b_confirmation(request):
     if request.method != "POST":
         return JsonResponse({"ResultCode": "C2B00011", "ResultDesc": "POST required"}, status=405)
     try:
-        payload = json.loads(request.body.decode("utf-8"))
+        payload = _decode_callback_payload(request)
         transaction_id = str(payload["TransID"]).strip().upper()
-        amount = payload["TransAmount"]
+        amount = Decimal(str(payload["TransAmount"]))
         bill_reference = str(payload["BillRefNumber"]).strip()
         shortcode = str(payload["BusinessShortCode"]).strip()
+        msisdn = str(payload.get("MSISDN", "")).strip()
+        transaction_time = str(payload.get("TransTime", "")).strip()
         expected_shortcode = os.environ.get("DARAJA_SHORTCODE", "").strip()
         if not expected_shortcode or shortcode != expected_shortcode:
             return JsonResponse({"ResultCode": "C2B00012", "ResultDesc": "Unrecognised business shortcode"}, status=403)
-        if not transaction_id or not bill_reference or len(transaction_id) > 30:
-            raise ValueError("Invalid C2B identifiers")
+        if (
+            not transaction_id or len(transaction_id) > 30
+            or not bill_reference or len(bill_reference) > 40
+            or len(shortcode) > 20 or len(msisdn) > 20 or len(transaction_time) > 20
+            or not amount.is_finite() or amount <= 0
+            or amount.quantize(Decimal("0.01")) != amount
+            or amount > Decimal("999999999999.99")
+        ):
+            raise ValueError("Invalid C2B confirmation fields")
         C2BNotification.objects.get_or_create(transaction_id=transaction_id, defaults={
             "business_shortcode": shortcode, "bill_reference": bill_reference,
-            "amount": amount, "msisdn": str(payload.get("MSISDN", "")),
-            "transaction_time": str(payload.get("TransTime", "")), "payload": payload,
+            "amount": amount, "msisdn": msisdn,
+            "transaction_time": transaction_time, "payload": payload,
         })
-    except (ValueError, KeyError, TypeError, UnicodeDecodeError):
+    except (ValueError, KeyError, TypeError, UnicodeDecodeError, InvalidOperation):
         return JsonResponse({"ResultCode": "C2B00012", "ResultDesc": "Invalid confirmation payload"}, status=400)
-    # C2B is durably captured, but is not posted until a transaction-status verification and invoice match pass.
+    # C2B is durably captured, but is not posted until a statement match is independently confirmed.
     return JsonResponse({"ResultCode": 0, "ResultDesc": "Confirmation captured for verification"})
 
 
