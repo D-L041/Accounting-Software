@@ -181,7 +181,8 @@ class BillingApiTests(TestCase):
         )
         self.assertEqual(receipt.status_code, 200)
         self.assertEqual(receipt["Content-Type"], "application/pdf")
-        self.assertTrue(receipt.content.startswith(b"%PDF"))
+        body = b"".join(receipt.streaming_content)
+        self.assertTrue(body.startswith(b"%PDF"))
         other = School.objects.create(name="Private Receipt School", code="private-receipt-school")
         response = self.client.get(
             f"/api/schools/{other.pk}/billing/payments/{payment.data['id']}/receipt/"
