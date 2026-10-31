@@ -162,3 +162,32 @@ class SupplierBillWorkflowTests(TestCase):
         self.assertEqual(approved.status_code, 200, approved.data)
         self.assertEqual(approved.data["status"], SupplierBill.Status.APPROVED)
 
+    def test_supplier_bill_api_cannot_access_another_school_bill(self):
+        from expenses.models import Supplier, SupplierBill
+        other = School.objects.create(name="Other Bills School", code="other-bills-school")
+        other_period = FinancialPeriod.objects.create(
+            school=other, name="FY26", starts_on="2026-01-01", ends_on="2026-12-31"
+        )
+        other_expense = Account.objects.create(
+            school=other, code="5100", name="Other Repairs", category="EXPENSE"
+        )
+        other_payable = Account.objects.create(
+            school=other, code="2000", name="Other Payables", category="LIABILITY"
+        )
+        other_category = ExpenseCategory.objects.create(
+            school=other, code="REPAIRS", name="Repairs", expense_account=other_expense
+        )
+        other_supplier = Supplier.objects.create(school=other, name="Other Supplier")
+        other_bill = SupplierBill.objects.create(
+            school=other, supplier=other_supplier, category=other_category,
+            period=other_period, payable_account=other_payable,
+            bill_number="BILL-000001", supplier_invoice_number="OTHER-INV-001",
+            bill_date="2026-04-01", due_date="2026-04-30",
+            description="Other school purchase", amount="1000.00", created_by=self.creator,
+        )
+        self.client.force_authenticate(self.creator)
+        response = self.client.get(
+            f"/api/schools/{self.school.pk}/expenses/bills/{other_bill.pk}/"
+        )
+        self.assertEqual(response.status_code, 404)
+
