@@ -3,6 +3,8 @@ from rest_framework import permissions, status, viewsets
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
+from auditlog.services import record_event
+
 from .models import AcademicYear, ClassRoom, School, SchoolMembership, Student
 from .permissions import SchoolRolePermission
 from .serializers import (
@@ -32,7 +34,8 @@ class SchoolViewSet(viewsets.ModelViewSet):
         ).first()
         if not membership or membership.role not in {SchoolMembership.Role.OWNER, SchoolMembership.Role.ADMIN}:
             raise PermissionDenied("Only a school owner or administrator can update school settings.")
-        serializer.save()
+        instance = serializer.save()
+        record_event(school=school, actor=self.request.user, action="SCHOOL_SETTINGS_UPDATED", entity_type="School", entity_id=school.pk, summary="Updated school settings")
 
 
 class SchoolScopedViewSet(viewsets.ModelViewSet):
@@ -63,11 +66,13 @@ class SchoolScopedViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         self.check_write_role()
-        serializer.save(school=self.get_school())
+        instance = serializer.save(school=self.get_school())
+        record_event(school=self.get_school(), actor=self.request.user, action=f"{instance.__class__.__name__.upper()}_CREATED", entity_type=instance.__class__.__name__, entity_id=instance.pk, summary=f"Created {instance.__class__.__name__}")
 
     def perform_update(self, serializer):
         self.check_write_role()
-        serializer.save()
+        instance = serializer.save()
+        record_event(school=self.get_school(), actor=self.request.user, action=f"{instance.__class__.__name__.upper()}_UPDATED", entity_type=instance.__class__.__name__, entity_id=instance.pk, summary=f"Updated {instance.__class__.__name__}")
 
     def perform_destroy(self, instance):
         self.check_write_role()
