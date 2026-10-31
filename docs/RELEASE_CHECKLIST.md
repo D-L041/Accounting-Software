@@ -31,9 +31,11 @@ A green frontend build or successful deployment alone is not sufficient for fina
 - [x] PWA manifest and service worker cache the application shell and static assets only.
 - [ ] No offline outbox, authenticated sync endpoint or conflict UI is implemented. Financial writes remain online-only. The safe sync boundary is documented in `docs/OFFLINE_SYNC_DESIGN.md`.
 - [x] Automated tenant-isolation tests added for bank statements, supplier bills, payroll employee lists and C2B reconciliation.
-- [ ] Independent security review, penetration testing, complete tenant-isolation programme and dependency/security scanning sign-off remain outstanding.
+- [x] CI dependency audits for Python and npm pass with zero known vulnerabilities on the resolved dependency set.
+- [ ] Independent security review, penetration testing and complete tenant-isolation programme remain outstanding.
 - [x] PostgreSQL backup/restore procedure documented in `docs/BACKUP_RESTORE_RUNBOOK.md`.
 - [ ] Managed backup schedule, retention, monitoring and a witnessed restore drill remain outstanding.
+- [ ] Pin frontend dependency versions and commit `package-lock.json`; add a reproducible Python dependency lock before production release.
 - [ ] Production API, managed PostgreSQL and frontend provisioned and configured.
 - [ ] Custom domain connected and HTTPS verified in the live environment.
 - [ ] End-to-end school acceptance tests passed using approved test data, including supplier payables, payroll, refunds, bank reconciliation, trial balance and balance sheet reconciliation.
