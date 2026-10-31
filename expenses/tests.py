@@ -243,3 +243,74 @@ class ExpenseBudgetTests(TestCase):
             format="json",
         )
         self.assertEqual(response.status_code, 400)
+
+
+class PurchaseOrderApprovalTests(TestCase):
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+        from expenses.models import Supplier
+        self.User = get_user_model()
+        self.creator = self.User.objects.create_user(username="po-creator", password="test-password")
+        self.admin = self.User.objects.create_user(username="po-admin", password="test-password")
+        self.owner = self.User.objects.create_user(username="po-owner", password="test-password")
+        self.school = School.objects.create(name="Procurement School", code="procurement-school")
+        SchoolMembership.objects.create(school=self.school, user=self.creator, role="ACCOUNTANT")
+        SchoolMembership.objects.create(school=self.school, user=self.admin, role="ADMIN")
+        SchoolMembership.objects.create(school=self.school, user=self.owner, role="OWNER")
+        self.period = FinancialPeriod.objects.create(
+            school=self.school, name="FY26", starts_on="2026-01-01", ends_on="2026-12-31"
+        )
+        self.supplier = Supplier.objects.create(school=self.school, name="Learning Supplies Ltd")
+        self.client = APIClient()
+        self.client.force_authenticate(self.creator)
+
+    def test_purchase_order_requires_sequential_configured_approvals(self):
+        from expenses.models import PurchaseOrder, PurchaseOrderApproval, ProcurementApprovalRule
+        base = f"/api/schools/{self.school.pk}/expenses/"
+        ProcurementApprovalRule.objects.create(
+            school=self.school, min_amount="0.00", step_number=1, approver_role="ADMIN"
+        )
+        ProcurementApprovalRule.objects.create(
+            school=self.school, min_amount="10000.00", step_number=2, approver_role="OWNER"
+        )
+        created = self.client.post(base + "purchase-orders/", {
+            "supplier": self.supplier.pk, "period": self.period.pk,
+            "order_date": "2026-05-01", "expected_date": "2026-05-15",
+            "description": "Term 2 learning materials",
+            "lines": [
+                {"description": "Exercise books", "quantity": "100.000", "unit_cost": "150.00"},
+                {"description": "Pens", "quantity": "50.000", "unit_cost": "50.00"},
+            ],
+        }, format="json")
+        self.assertEqual(created.status_code, 201, created.data)
+        self.assertEqual(created.data["total_amount"], "17500.00")
+        order_id = created.data["id"]
+        submitted = self.client.post(f"{base}purchase-orders/{order_id}/submit/", {}, format="json")
+        self.assertEqual(submitted.status_code, 200, submitted.data)
+        self.assertEqual(submitted.data["status"], PurchaseOrder.Status.SUBMITTED)
+        self.assertEqual(PurchaseOrderApproval.objects.filter(purchase_order_id=order_id).count(), 2)
+
+        # Creator cannot approve their own order, and only the configured role can act.
+        denied = self.client.post(f"{base}purchase-orders/{order_id}/approve/", {}, format="json")
+        self.assertEqual(denied.status_code, 403)
+
+        self.client.force_authenticate(self.admin)
+        first = self.client.post(f"{base}purchase-orders/{order_id}/approve/", {}, format="json")
+        self.assertEqual(first.status_code, 200, first.data)
+        self.assertEqual(first.data["status"], PurchaseOrder.Status.SUBMITTED)
+
+        self.client.force_authenticate(self.owner)
+        final = self.client.post(f"{base}purchase-orders/{order_id}/approve/", {}, format="json")
+        self.assertEqual(final.status_code, 200, final.data)
+        self.assertEqual(final.data["status"], PurchaseOrder.Status.APPROVED)
+
+    def test_purchase_order_rejects_cross_school_supplier(self):
+        from expenses.models import Supplier
+        other = School.objects.create(name="Other School", code="other-procurement")
+        foreign_supplier = Supplier.objects.create(school=other, name="Foreign supplier")
+        response = self.client.post(f"/api/schools/{self.school.pk}/expenses/purchase-orders/", {
+            "supplier": foreign_supplier.pk, "period": self.period.pk,
+            "order_date": "2026-05-01", "description": "Invalid order",
+            "lines": [{"description": "Item", "quantity": "1", "unit_cost": "100.00"}],
+        }, format="json")
+        self.assertEqual(response.status_code, 400)
