@@ -52,12 +52,20 @@ class SchoolPayrollViewSet:
         if not member or member.role not in self.write_roles:
             raise PermissionDenied("Your school role does not permit this payroll operation.")
 
+    def check_payroll_read_role(self):
+        member = SchoolMembership.objects.filter(
+            school=self.get_school(), user=self.request.user, is_active=True
+        ).first()
+        if not member or member.role not in self.write_roles:
+            raise PermissionDenied("Your school role does not permit access to employee and payroll records.")
+
 
 class EmployeeViewSet(SchoolPayrollViewSet, viewsets.ModelViewSet):
     serializer_class = EmployeeSerializer
     http_method_names = ["get", "post", "patch", "head", "options"]
 
     def get_queryset(self):
+        self.check_payroll_read_role()
         return Employee.objects.filter(school=self.get_school())
 
     def perform_create(self, serializer):
@@ -118,6 +126,7 @@ class PayrollSettingsViewSet(SchoolPayrollViewSet, viewsets.ModelViewSet):
     http_method_names = ["get", "post", "patch", "head", "options"]
 
     def get_queryset(self):
+        self.check_payroll_read_role()
         return PayrollSettings.objects.filter(school=self.get_school())
 
     def create(self, request, *args, **kwargs):
@@ -144,6 +153,7 @@ class PayrollRunViewSet(SchoolPayrollViewSet, viewsets.GenericViewSet):
     http_method_names = ["get", "post", "head", "options"]
 
     def get_queryset(self):
+        self.check_payroll_read_role()
         return PayrollRun.objects.filter(school=self.get_school()).select_related(
             "period", "journal_entry", "created_by"
         ).prefetch_related("lines__employee")
