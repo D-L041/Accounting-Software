@@ -58,7 +58,7 @@ class FeeItemViewSet(BillingViewSet):
 
 class BillingSettingsViewSet(BillingViewSet):
     serializer_class = SchoolBillingSettingsSerializer
-    http_method_names = ["get", "put", "patch", "head", "options"]
+    http_method_names = ["get", "post", "put", "patch", "head", "options"]
 
     def get_queryset(self):
         return SchoolBillingSettings.objects.filter(school=self.get_school())
