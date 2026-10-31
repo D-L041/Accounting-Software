@@ -51,3 +51,6 @@ class C2BNotification(models.Model):
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.RECEIVED)
     payload = models.JSONField(default=dict, blank=True)
     received_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-received_at"]
