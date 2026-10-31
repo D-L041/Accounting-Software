@@ -62,6 +62,8 @@ class EmployeeViewSet(SchoolPayrollViewSet, viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         self.check_write_role()
+        if serializer.validated_data.get("tax_claims_verified") or serializer.validated_data.get("tax_exemption_verified"):
+            self.check_admin_role()
         employee = serializer.save(school=self.get_school())
         record_event(
             school=self.get_school(), actor=self.request.user,
@@ -71,7 +73,25 @@ class EmployeeViewSet(SchoolPayrollViewSet, viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         self.check_write_role()
-        employee = serializer.save()
+        changes = serializer.validated_data
+        if changes.get("tax_claims_verified") is True or changes.get("tax_exemption_verified") is True:
+            self.check_admin_role()
+        claim_fields = {
+            "monthly_insurance_premiums", "monthly_mortgage_interest",
+            "monthly_post_retirement_medical", "monthly_additional_pension",
+            "tax_claims_reference",
+        }
+        exemption_fields = {
+            "tax_exemption_certificate_ref", "tax_exemption_valid_from", "tax_exemption_valid_to",
+        }
+        save_kwargs = {}
+        if any(field in changes and changes[field] != getattr(serializer.instance, field) for field in claim_fields):
+            if changes.get("tax_claims_verified") is not True:
+                save_kwargs["tax_claims_verified"] = False
+        if any(field in changes and changes[field] != getattr(serializer.instance, field) for field in exemption_fields):
+            if changes.get("tax_exemption_verified") is not True:
+                save_kwargs["tax_exemption_verified"] = False
+        employee = serializer.save(**save_kwargs)
         record_event(
             school=self.get_school(), actor=self.request.user,
             action="EMPLOYEE_UPDATED", entity_type="Employee", entity_id=employee.pk,
