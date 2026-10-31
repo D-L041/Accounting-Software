@@ -136,3 +136,21 @@ class SupplierBillSerializer(serializers.ModelSerializer):
                 created_by=self.context["request"].user, **validated_data,
             )
 
+class RecordSupplierBillPaymentSerializer(serializers.Serializer):
+    payment_date = serializers.DateField()
+    amount = serializers.DecimalField(max_digits=14, decimal_places=2, min_value=0.01)
+    payment_method = serializers.ChoiceField(choices=Payment.Method.choices)
+    payment_account = serializers.PrimaryKeyRelatedField(queryset=Account.objects.all())
+    period = serializers.PrimaryKeyRelatedField(queryset=FinancialPeriod.objects.all())
+    reference = serializers.CharField(required=False, allow_blank=True, max_length=100)
+
+    def validate(self, attrs):
+        school = self.context["school"]
+        if attrs["payment_account"].school_id != school.id:
+            raise serializers.ValidationError({"payment_account": "Payment account must belong to this school."})
+        if attrs["period"].school_id != school.id:
+            raise serializers.ValidationError({"period": "Payment period must belong to this school."})
+        if attrs["payment_account"].category != Account.Category.ASSET:
+            raise serializers.ValidationError({"payment_account": "Choose an asset account."})
+        return attrs
+
