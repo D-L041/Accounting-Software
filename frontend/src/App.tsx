@@ -69,7 +69,7 @@ export default function App() {
   const [menu,setMenu] = useState(false);
   const [loading,setLoading] = useState(true);
   const [isOnline,setIsOnline] = useState(navigator.onLine);
-  const [offlineDrafts,setOfflineDrafts] = useState<{idempotencyKey:string;createdAt:string;state:string;lastError?:string}[]>([]);
+  const [offlineDrafts,setOfflineDrafts] = useState<{idempotencyKey:string;createdAt:string;resourceType?:string;state:string;lastError?:string}[]>([]);
   const [busy,setBusy] = useState(false);
   const [error,setError] = useState("");
   const [success,setSuccess] = useState("");
@@ -214,7 +214,7 @@ export default function App() {
     try {
       await discardExpenseDraft(user.id, school.id, idempotencyKey);
       await refreshOfflineDrafts();
-      setSuccess("Offline expense draft discarded from this device.");
+      setSuccess("Offline draft discarded from this device.");
     } catch (e) { setError(errorText(e)); }
   }
 
@@ -223,7 +223,7 @@ export default function App() {
     setUser(response.user); setSchool(response.user.schools[0] || null);
   }
   async function handleLogout() {
-    if (offlineDrafts.length && !window.confirm(`There are ${offlineDrafts.length} unsynchronised offline expense draft(s). They will remain encrypted on this device. Continue signing out?`)) return;
+    if (offlineDrafts.length && !window.confirm(`There are ${offlineDrafts.length} unsynchronised offline draft(s). They will remain encrypted on this device. Continue signing out?`)) return;
     try { await logout(); } finally { setUser(null); setSchool(null); setRows([]); setOfflineDrafts([]); }
   }
   async function submitAction(path:string, payload:Row, message:string) {
@@ -488,9 +488,9 @@ export default function App() {
       <header><button className="icon-btn mobile" onClick={()=>setMenu(!menu)}><Menu/></button><div className="crumb">Precious SchoolBooks <span>/</span> {active}</div><div className="head-actions">{user.schools.length>1&&<select className="school-switcher" value={school.id} onChange={e=>setSchool(user.schools.find(x=>x.id===Number(e.target.value))||null)}>{user.schools.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select>}<button className="icon-btn" title="Refresh" onClick={()=>void loadData()}><RefreshCw/></button><div className="avatar">{user.name.slice(0,2).toUpperCase()}</div><div className="user-label">{user.name}<small>{school.role}</small></div><button className="icon-btn" title="Sign out" onClick={handleLogout}><LogOut/></button></div></header>
       <section className="content">
         <div className="welcome"><div><div className="eyebrow">SCHOOL FINANCE WORKSPACE</div><h1>{heading}</h1><p>{school.name} · Kenyan Shillings (KES)</p></div><div className="period">Signed in as <strong>{user.username}</strong></div></div>
-         {!isOnline&&<div className="error-banner"><AlertCircle size={16}/>Offline mode: previously loaded reference lists remain available in this session. You can save encrypted expense drafts; student records, payments, payroll and ledger postings remain online-only.</div>}
-         {offlineDrafts.length>0&&<div className="notice"><ClipboardList size={18}/><div><strong>{offlineDrafts.length} offline expense draft(s) waiting</strong><span>{offlineDrafts.filter(x=>x.state==="needs_attention").length} need review. Drafts are not posted until reviewed online.</span></div><button className="small-action" disabled={!isOnline} onClick={()=>void syncOfflineQueue()}>Sync now</button></div>}
-         {offlineDrafts.length>0&&<div className="entry-panel"><div className="panel-heading"><div><h2>Offline draft queue</h2><p>These records are encrypted on this device and have not affected the ledger.</p></div></div><div className="table-wrap"><table><thead><tr><th>Captured</th><th>Status</th><th>Details</th><th>Action</th></tr></thead><tbody>{offlineDrafts.map(item=><tr key={item.idempotencyKey}><td>{new Date(item.createdAt).toLocaleString()}</td><td>{item.state==="needs_attention"?"Needs review":"Waiting to sync"}</td><td>{item.lastError||"Expense draft — pending server validation"}</td><td><button className="small-action" onClick={()=>void discardOfflineItem(item.idempotencyKey)}>Discard</button></td></tr>)}</tbody></table></div></div>}
+         {!isOnline&&<div className="error-banner"><AlertCircle size={16}/>Offline mode: previously loaded reference lists remain available in this session. You can save encrypted expense and purchase-order drafts; student records, payments, payroll and ledger postings remain online-only.</div>}
+         {offlineDrafts.length>0&&<div className="notice"><ClipboardList size={18}/><div><strong>{offlineDrafts.length} offline draft(s) waiting</strong><span>{offlineDrafts.filter(x=>x.state==="needs_attention").length} need review. Drafts are not posted until reviewed online.</span></div><button className="small-action" disabled={!isOnline} onClick={()=>void syncOfflineQueue()}>Sync now</button></div>}
+         {offlineDrafts.length>0&&<div className="entry-panel"><div className="panel-heading"><div><h2>Offline draft queue</h2><p>These records are encrypted on this device and have not affected the ledger.</p></div></div><div className="table-wrap"><table><thead><tr><th>Captured</th><th>Status</th><th>Details</th><th>Action</th></tr></thead><tbody>{offlineDrafts.map(item=><tr key={item.idempotencyKey}><td>{new Date(item.createdAt).toLocaleString()}</td><td>{item.state==="needs_attention"?"Needs review":"Waiting to sync"}</td><td>{item.lastError||`${item.resourceType==="purchase_order"?"Purchase order":"Expense"} draft — pending server validation`}</td><td><button className="small-action" onClick={()=>void discardOfflineItem(item.idempotencyKey)}>Discard</button></td></tr>)}</tbody></table></div></div>}
         {error&&<div className="error-banner"><AlertCircle size={16}/>{error}</div>}
         {success&&<div className="success-banner"><CheckCircle2 size={16}/>{success}</div>}
         {active==="Overview"&&<div className="metric-grid">
