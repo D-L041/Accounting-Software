@@ -5,7 +5,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from auditlog.services import record_event
-from ledger.models import JournalEntry, JournalLine
+from ledger.models import FinancialPeriod, JournalEntry, JournalLine
 
 from .models import SupplierBill, SupplierBillPayment
 
@@ -100,7 +100,10 @@ def record_supplier_bill_payment(bill_id, user, *, payment_date, amount, payment
         raise ValidationError("Cannot record a payment in a locked financial period.")
     if payment_account.category != "ASSET" or not payment_account.is_active:
         raise ValidationError("Choose an active cash, bank or M-Pesa asset account.")
-    if not (period.starts_on <= payment_date <= period.ends_on):
+    payment_date = SupplierBillPayment._meta.get_field("payment_date").to_python(payment_date)
+    period_start = FinancialPeriod._meta.get_field("starts_on").to_python(period.starts_on)
+    period_end = FinancialPeriod._meta.get_field("ends_on").to_python(period.ends_on)
+    if not (period_start <= payment_date <= period_end):
         raise ValidationError("Payment date must fall within its financial period.")
     amount = Decimal(amount)
     if amount <= 0:
