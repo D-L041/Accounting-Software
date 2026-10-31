@@ -158,6 +158,12 @@ export async function syncExpenseDrafts(
           await markNeedsAttention(db, draft, "Draft could not be decrypted or read. It has been retained for review.");
           continue;
         }
+        const httpStatus = error && typeof error === "object" && "status" in error
+          ? Number((error as { status?: unknown }).status) : 0;
+        if (httpStatus >= 400 && httpStatus < 500) {
+          await markNeedsAttention(db, draft, error instanceof Error ? error.message : "Server rejected this draft. It has been retained for review.");
+          continue;
+        }
         throw error;
       }
     }
