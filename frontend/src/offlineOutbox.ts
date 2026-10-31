@@ -112,9 +112,10 @@ export async function syncExpenseDrafts(
   let synced = 0;
   try {
     const scope = scopeFor(userId, schoolId);
-    const read = db.transaction(["drafts", "keys"], "readonly");
-    const drafts = await requestResult(read.objectStore("drafts").index("scope").getAll(scope)) as StoredDraft[];
-    const saved = await requestResult(read.objectStore("keys").get(scope)) as StoredKey | undefined;
+    const draftsTx = db.transaction("drafts", "readonly");
+    const drafts = await requestResult(draftsTx.objectStore("drafts").index("scope").getAll(scope)) as StoredDraft[];
+    const keysTx = db.transaction("keys", "readonly");
+    const saved = await requestResult(keysTx.objectStore("keys").get(scope)) as StoredKey | undefined;
     if (!drafts.length) return { synced, remaining: 0 };
     if (!saved?.key) throw new Error("Offline encryption key is missing. Keep this device secure and contact support before clearing its storage.");
     for (const draft of drafts) {
