@@ -201,3 +201,45 @@ class PayrollWorkflowTests(TestCase):
             sum(line.credit for line in journal.lines.all()),
         )
 
+
+
+    def test_statutory_exports_require_posted_payroll_and_are_audited(self):
+        from auditlog.models import AuditEvent
+
+        created = self.client.post(
+            f"/api/schools/{self.school.pk}/payroll/runs/",
+            {"period": self.period.pk, "payroll_month": "2026-02-01", "pay_date": "2026-02-28"},
+            format="json",
+        )
+        self.assertEqual(created.status_code, 201, created.data)
+        base = f"/api/schools/{self.school.pk}/payroll/runs/{created.data['id']}/statutory-export/"
+        draft_schedule = self.client.get(base + "?schedule=NSSF")
+        self.assertEqual(draft_schedule.status_code, 400)
+        register = self.client.get(base + "?schedule=REGISTER")
+        self.assertEqual(register.status_code, 200)
+        self.assertIn("Employee number", register.content.decode("utf-8"))
+        self.assertEqual(self.configure_payroll().status_code, 201)
+        posted = self.client.post(
+            f"/api/schools/{self.school.pk}/payroll/runs/{created.data['id']}/post/",
+            {}, format="json",
+        )
+        self.assertEqual(posted.status_code, 200, posted.data)
+        nssf = self.client.get(base + "?schedule=NSSF")
+        self.assertEqual(nssf.status_code, 200)
+        self.assertIn("3000.00,3000.00,6000.00", nssf.content.decode("utf-8"))
+        self.assertTrue(AuditEvent.objects.filter(
+            school=self.school, action="PAYROLL_EXPORT_DOWNLOADED",
+            entity_id=str(created.data["id"]),
+        ).exists())
+
+    def test_statutory_export_rejects_unknown_schedule(self):
+        created = self.client.post(
+            f"/api/schools/{self.school.pk}/payroll/runs/",
+            {"period": self.period.pk, "payroll_month": "2026-02-01", "pay_date": "2026-02-28"},
+            format="json",
+        )
+        self.assertEqual(created.status_code, 201, created.data)
+        response = self.client.get(
+            f"/api/schools/{self.school.pk}/payroll/runs/{created.data['id']}/statutory-export/?schedule=INVALID"
+        )
+        self.assertEqual(response.status_code, 400)
