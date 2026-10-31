@@ -22,7 +22,8 @@ A green frontend build or successful deployment alone is not sufficient for fina
 - [x] Credit note and refund frontend screen implemented.
 - [x] Payroll employee, effective-dated statutory parameters, payroll calculation, posting and account mappings implemented.
 - [x] Payroll statutory review found and corrected the NSSF PAYE deductibility rule; regression tests include January/February 2026 and an independent KES 100,000 benchmark.
-- [ ] Full payroll remains incomplete: employee-declared insurance relief, mortgage interest, post-retirement medical fund, additional pension claims, tax exemption certificates, taxable benefits in kind, NITA levy, statutory schedules/exports and independent Kenyan payroll-practitioner sign-off are outstanding. See `docs/PAYROLL_STATUTORY_REVIEW.md`.
+- [x] Effective-dated NITA employer levy (KES 50 per active employee per month), separate liability mapping and employer-cost posting implemented; it is not deducted from employee net pay.
+- [ ] Full payroll remains incomplete: employee-declared insurance relief, mortgage interest, post-retirement medical fund, additional pension claims, tax exemption certificates, taxable benefits in kind, statutory schedules/exports and independent Kenyan payroll-practitioner sign-off are outstanding. See `docs/PAYROLL_STATUTORY_REVIEW.md`.
 - [x] Immutable audit events for core financial posting actions and a school-scoped audit log.
 - [ ] Complete CRUD audit coverage, approval-limit configuration and procurement approval workflows.
 - [x] Downloadable PDF receipts with school-level access checks.
