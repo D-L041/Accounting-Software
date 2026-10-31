@@ -5,4 +5,5 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", include("accounts.urls")),
     path("api/schools/<int:school_pk>/ledger/", include("ledger.urls")),
+    path("api/schools/<int:school_pk>/billing/", include("billing.urls")),
 ]
