@@ -9,16 +9,16 @@ A green frontend build or successful deployment alone is not sufficient for fina
 - [x] Posted journal and line mutation paths guarded.
 - [x] Production settings reject missing secrets and non-PostgreSQL databases.
 - [x] Latest backend and frontend CI run observed and passed for the verified baseline (re-run required for subsequent commits).
-- [x] Session authentication, role permissions and school-level tenant isolation implemented and tested.
-- [x] Student, fees, invoices, payment allocation and receipt workflows implemented in API and frontend.
+- [x] Session authentication, role permissions, school-level tenant isolation and owner/admin staff-login management implemented and tested.
+- [x] Student, class/term fee schedules, bulk draft invoicing, invoices, payment allocation and receipt workflows implemented in API and frontend.
 - [x] Supplier directory, expense categories and ledger-posted expense workflow implemented.
 - [ ] Payroll, budgeting, supplier bills/payables and procurement workflows implemented.
 - [x] Trial balance API and frontend report implemented.
 - [x] Trial balance, balance sheet and income/expenditure statements implemented.
-- [x] Posted cashbook movement report implemented (period movement only; no opening balance).
+- [x] Posted cashbook movement report implemented (period movement only; no opening balance).\n- [x] API Docker image build and database health endpoint verified in CI.
 - [ ] Bank reconciliation and cash flow reporting implemented.
 - [x] Immutable audit events for core financial posting actions and a school-scoped audit log.
-- [ ] Complete CRUD audit coverage and financial approval workflows.
+- [ ] Complete CRUD audit coverage and financial approval workflows.\n- [ ] Printable receipt PDF, credit note/refund and verified M-Pesa callback workflows.
 - [ ] Offline data queue, sync and conflict resolution implemented and tested.
 - [ ] Independent security review and expanded tenant-isolation tests passed.
 - [ ] Backup schedule and a real restore drill verified.
