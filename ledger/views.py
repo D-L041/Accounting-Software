@@ -6,6 +6,7 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 
 from accounts.models import School, SchoolMembership
+from auditlog.services import record_event
 from .models import Account, FinancialPeriod, JournalEntry
 from .serializers import AccountSerializer, FinancialPeriodSerializer, JournalEntrySerializer
 
@@ -90,6 +91,12 @@ class FinancialPeriodViewSet(SchoolLedgerViewSet):
         period = self.get_object()
         period.is_locked = True
         period.save(update_fields=["is_locked"])
+        record_event(
+            school=period.school, actor=request.user, action="PERIOD_LOCKED",
+            entity_type="FinancialPeriod", entity_id=period.pk,
+            summary=f"Locked financial period {period.name}",
+            metadata={"starts_on": period.starts_on.isoformat(), "ends_on": period.ends_on.isoformat()},
+        )
         return Response(self.get_serializer(period).data, status=status.HTTP_200_OK)
 
 
