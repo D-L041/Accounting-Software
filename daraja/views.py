@@ -1,4 +1,5 @@
 import json
+import os
 
 from django.core.exceptions import ImproperlyConfigured, ValidationError as DjangoValidationError
 from django.db import IntegrityError, transaction
@@ -51,7 +52,16 @@ def stk_callback(request):
 def c2b_validation(request):
     if request.method != "POST":
         return JsonResponse({"ResultCode": "C2B00011", "ResultDesc": "POST required"}, status=405)
-    # Validation callback only acknowledges format here. It deliberately does not accept or allocate funds.
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+        expected_shortcode = os.environ.get("DARAJA_SHORTCODE", "").strip()
+        received_shortcode = str(payload.get("BusinessShortCode", "")).strip()
+        bill_reference = str(payload.get("BillRefNumber", "")).strip()
+        if not expected_shortcode or received_shortcode != expected_shortcode or not bill_reference:
+            return JsonResponse({"ResultCode": "C2B00012", "ResultDesc": "Invalid shortcode or bill reference"})
+    except (ValueError, UnicodeDecodeError):
+        return JsonResponse({"ResultCode": "C2B00012", "ResultDesc": "Invalid validation payload"}, status=400)
+    # Validation acknowledges the configured paybill only; allocation occurs after confirmation verification.
     return JsonResponse({"ResultCode": "0", "ResultDesc": "Accepted for confirmation and reconciliation"})
 
 
@@ -66,6 +76,9 @@ def c2b_confirmation(request):
         amount = payload["TransAmount"]
         bill_reference = str(payload["BillRefNumber"]).strip()
         shortcode = str(payload["BusinessShortCode"]).strip()
+        expected_shortcode = os.environ.get("DARAJA_SHORTCODE", "").strip()
+        if not expected_shortcode or shortcode != expected_shortcode:
+            return JsonResponse({"ResultCode": "C2B00012", "ResultDesc": "Unrecognised business shortcode"}, status=403)
         if not transaction_id or not bill_reference or len(transaction_id) > 30:
             raise ValueError("Invalid C2B identifiers")
         C2BNotification.objects.get_or_create(transaction_id=transaction_id, defaults={
