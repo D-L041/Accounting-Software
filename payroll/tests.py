@@ -78,6 +78,22 @@ class PayrollWorkflowTests(TestCase):
         self.assertEqual(line.paye, Decimal("5845.85"))
         self.assertEqual(line.net_pay, Decimal("39029.15"))
 
+    def test_2026_payroll_matches_independent_100k_statutory_benchmark(self):
+        Employee.objects.filter(pk=self.employee.pk).update(basic_salary=Decimal("100000.00"))
+        response = self.client.post(
+            f"/api/schools/{self.school.pk}/payroll/runs/",
+            {"period": self.period.pk, "payroll_month": "2026-02-01", "pay_date": "2026-02-28"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201, response.data)
+        line = PayrollLine.objects.get(run_id=response.data["id"], employee=self.employee)
+        self.assertEqual(line.nssf_employee, Decimal("6000.00"))
+        self.assertEqual(line.shif_employee, Decimal("2750.00"))
+        self.assertEqual(line.housing_levy_employee, Decimal("1500.00"))
+        self.assertEqual(line.taxable_pay, Decimal("89750.00"))
+        self.assertEqual(line.paye, Decimal("19308.35"))
+        self.assertEqual(line.net_pay, Decimal("70441.65"))
+
     def test_january_2026_nssf_uses_previous_effective_ceiling(self):
         Employee.objects.filter(pk=self.employee.pk).update(basic_salary=Decimal("100000.00"))
         response = self.client.post(
