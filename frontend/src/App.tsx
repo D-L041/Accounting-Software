@@ -4,7 +4,7 @@ import {
   Users, Settings, Menu, Bell, Search, ArrowUpRight, ArrowDownRight,
   ShieldCheck, LogOut, Plus, RefreshCw, AlertCircle, CheckCircle2, ClipboardList,
 } from "lucide-react";
-import { api, login, logout, School, User } from "./api";
+import { api, API_BASE_URL, login, logout, School, User } from "./api";
 import ReportPanel from "./ReportPanel";
 import CashbookPanel from "./CashbookPanel";
 import SchoolMembersPanel from "./SchoolMembersPanel";
@@ -360,6 +360,7 @@ export default function App() {
         {active==="Settings"&&<div className="notice"><Settings size={18}/><div><strong>Financial periods</strong><span>Only open periods can receive new postings. Period creation and billing-account setup are currently managed through authorised configuration endpoints.</span></div></div>}
         {loading&&active!=="Cashbook & Banks"?<div className="table-empty"><RefreshCw className="spin"/> Loading school records…</div>:active==="Cashbook & Banks"?null:<div className="data-panel"><div className="panel-heading"><div><h2>{active==="Overview"?"Recent financial activity":active==="Settings"?"Financial periods":active}</h2><p>{active==="Overview"?"Latest invoices, receipts and expenses recorded in this workspace.":"Records belonging to "+school.name+"."}</p></div><button className="secondary" onClick={()=>void loadData()}><RefreshCw size={15}/> Refresh</button></div>
           {active==="Audit Log"&&<DataTable rows={auditRows} currency={school.currency} empty="No audit events have been recorded yet." columns={columns}/>}{active!=="Reports"&&active!=="Audit Log"&&<DataTable rows={rows} currency={school.currency} empty="No records found. Add your first record using the form above." columns={columns}/>}
+          {active==="Payments & Receipts"&&<div className="row-actions">{rows.map(x=><button key={x.id} className="small-action" onClick={()=>window.open(API_BASE_URL+schoolBase+"/billing/payments/"+x.id+"/receipt/","_blank","noopener,noreferrer")}>Download receipt {x.receipt_number}</button>)}</div>}
           {active==="Fees & Invoices"&&<div className="row-actions">{rows.filter(x=>x.status==="DRAFT").map(x=><button key={x.id} className="small-action" disabled={busy} onClick={()=>void issueInvoice(x.id)}>Issue {x.invoice_number}</button>)}</div>}
           {active==="Expenses & Suppliers"&&<div className="row-actions">{rows.filter(x=>x.status==="DRAFT").map(x=><button key={x.id} className="small-action" disabled={busy} onClick={()=>void postExpense(x.id)}>Post {x.expense_number}</button>)}</div>}
         </div>}
