@@ -275,13 +275,18 @@ class CreditNoteSerializer(serializers.ModelSerializer):
         school = self.context["school"]
         lines = validated_data.pop("lines")
         with transaction.atomic():
-            number = _next_number(CreditNote, school, "CN", "credit_note_number")
-            note = CreditNote.objects.create(
-                school=school, credit_note_number=number,
-                created_by=self.context["request"].user, **validated_data,
-            )
-            for line in lines:
-                CreditNoteLine.objects.create(credit_note=note, **line)
+            try:
+                number = _next_number(CreditNote, school, "CN", "credit_note_number")
+                note = CreditNote.objects.create(
+                    school=school, credit_note_number=number,
+                    created_by=self.context["request"].user, **validated_data,
+                )
+                if not lines:
+                    raise serializers.ValidationError({"lines": "Add at least one credit note line."})
+                for line in lines:
+                    CreditNoteLine.objects.create(credit_note=note, **line)
+            except __import__("django.core.exceptions", fromlist=["ValidationError"]).ValidationError as exc:
+                raise serializers.ValidationError(getattr(exc, "message_dict", None) or exc.messages) from exc
         return note
 
 
