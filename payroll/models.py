@@ -16,6 +16,8 @@ class Employee(models.Model):
     last_name = models.CharField(max_length=80)
     job_title = models.CharField(max_length=120, blank=True)
     basic_salary = models.DecimalField(max_digits=14, decimal_places=2)
+    regular_cash_allowances = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    monthly_other_deductions = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
     is_resident = models.BooleanField(default=True)
     hire_date = models.DateField()
     is_active = models.BooleanField(default=True)
@@ -25,13 +27,17 @@ class Employee(models.Model):
         ordering = ["last_name", "first_name"]
         constraints = [
             models.UniqueConstraint(fields=["school", "employee_number"], name="unique_employee_number_school"),
-            models.CheckConstraint(condition=Q(basic_salary__gte=0), name="employee_basic_salary_nonnegative"),
+            models.CheckConstraint(condition=Q(basic_salary__gte=0) & Q(regular_cash_allowances__gte=0) & Q(monthly_other_deductions__gte=0), name="employee_pay_components_nonnegative"),
         ]
 
     def clean(self):
         super().clean()
         if self.basic_salary < 0:
             raise ValidationError({"basic_salary": "Basic salary cannot be negative."})
+        if self.regular_cash_allowances < 0:
+            raise ValidationError({"regular_cash_allowances": "Regular allowances cannot be negative."})
+        if self.monthly_other_deductions < 0:
+            raise ValidationError({"monthly_other_deductions": "Other deductions cannot be negative."})
 
     def save(self, *args, **kwargs):
         self.full_clean()
