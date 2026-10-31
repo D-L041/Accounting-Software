@@ -29,7 +29,7 @@ export default function PayrollPanel({schoolId,currency,periods,accounts,canWrit
    api<Row[]>(`${base}/settings/`),api<Row[]>(`${base}/rules/`),api<Row[]>(`${base}/tax-bands/`),
   ]);
   setEmployees(e);setRuns(r);setSettings(s[0]||null);setRules(pr);setBands(tb);
-  if(s[0])setMapping({salary_expense_account:String(s[0].salary_expense_account),net_payable_account:String(s[0].net_payable_account),paye_payable_account:String(s[0].paye_payable_account),nssf_payable_account:String(s[0].nssf_payable_account),shif_payable_account:String(s[0].shif_payable_account),housing_levy_payable_account:String(s[0].housing_levy_payable_account),other_deductions_payable_account:String(s[0].other_deductions_payable_account)});
+  if(s[0])setMapping({salary_expense_account:String(s[0].salary_expense_account),net_payable_account:String(s[0].net_payable_account),paye_payable_account:String(s[0].paye_payable_account),nssf_payable_account:String(s[0].nssf_payable_account),shif_payable_account:String(s[0].shif_payable_account),housing_levy_payable_account:String(s[0].housing_levy_payable_account),other_deductions_payable_account:String(s[0].other_deductions_payable_account),nita_payable_account:s[0].nita_payable_account?String(s[0].nita_payable_account):""});
  }
  useEffect(()=>{void refresh().catch(e=>setError(e.message));},[schoolId]);
  async function createEmployee(e:React.FormEvent){
@@ -68,7 +68,7 @@ export default function PayrollPanel({schoolId,currency,periods,accounts,canWrit
    <form className="entry-panel" onSubmit={saveSettings}>
     <h3>Payroll ledger accounts</h3>
     <label>Salary expense<select required value={mapping.salary_expense_account||""} onChange={e=>setMapping(v=>({...v,salary_expense_account:e.target.value}))}><option value="">Select expense account</option>{expenses.map(a=><option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}</select></label>
-    {(["net_payable_account","paye_payable_account","nssf_payable_account","shif_payable_account","housing_levy_payable_account","other_deductions_payable_account"] as const).map((key,i)=><label key={key}>{["Net salaries payable","PAYE payable","NSSF payable","SHIF payable","Housing levy payable","Other deductions payable"][i]}<select required value={mapping[key]||""} onChange={e=>setMapping(v=>({...v,[key]:e.target.value}))}><option value="">Select liability account</option>{liabilities.map(a=><option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}</select></label>)}
+    {(["net_payable_account","paye_payable_account","nssf_payable_account","shif_payable_account","housing_levy_payable_account","other_deductions_payable_account","nita_payable_account"] as const).map((key,i)=><label key={key}>{["Net salaries payable","PAYE payable","NSSF payable","SHIF payable","Housing levy payable","Other deductions payable","NITA levy payable"][i]}<select required value={mapping[key]||""} onChange={e=>setMapping(v=>({...v,[key]:e.target.value}))}><option value="">Select liability account</option>{liabilities.map(a=><option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}</select></label>)}
     <button className="primary" disabled={busy||!expenses.length||!liabilities.length}>{settings?"Update account mappings":"Save account mappings"}</button>
    </form>
   </div>}
@@ -89,15 +89,15 @@ export default function PayrollPanel({schoolId,currency,periods,accounts,canWrit
   <div className="entry-panel"><h3>Payroll runs</h3>
    {runs.map(r=><div key={r.id} className="payroll-run">
     <div className="panel-heading"><div><strong>{new Date(r.payroll_month+"T00:00:00").toLocaleDateString("en-KE",{month:"long",year:"numeric"})}</strong><p>{r.employee_count} employees · Gross {money(r.gross_total,currency)} · Net {money(r.net_total,currency)}</p></div><div><span className="status-pill">{r.status}</span>{r.status==="DRAFT"&&canWrite&&<button className="small-action" disabled={busy||!settings} onClick={()=>void postRun(r.id)}>Post payroll</button>}</div></div>
-    <div className="table-wrap"><table><thead><tr><th>Employee</th><th>Gross</th><th>PAYE</th><th>NSSF</th><th>SHIF</th><th>Housing levy</th><th>Net pay</th></tr></thead><tbody>
-     {(r.lines||[]).map((l:Row)=><tr key={l.id}><td>{l.employee_name}</td><td>{money(l.gross_pay,currency)}</td><td>{money(l.paye,currency)}</td><td>{money(l.nssf_employee,currency)}</td><td>{money(l.shif_employee,currency)}</td><td>{money(l.housing_levy_employee,currency)}</td><td>{money(l.net_pay,currency)}</td></tr>)}
+    <div className="table-wrap"><table><thead><tr><th>Employee</th><th>Gross</th><th>PAYE</th><th>NSSF</th><th>SHIF</th><th>Housing levy</th><th>NITA (employer)</th><th>Net pay</th></tr></thead><tbody>
+     {(r.lines||[]).map((l:Row)=><tr key={l.id}><td>{l.employee_name}</td><td>{money(l.gross_pay,currency)}</td><td>{money(l.paye,currency)}</td><td>{money(l.nssf_employee,currency)}</td><td>{money(l.shif_employee,currency)}</td><td>{money(l.housing_levy_employee,currency)}</td><td>{money(l.nita_levy_employer,currency)}</td><td>{money(l.net_pay,currency)}</td></tr>)}
     </tbody></table></div>
    </div>)}
    {!runs.length&&<p className="muted">No payroll runs have been created.</p>}
   </div>
   <div className="entry-panel"><h3>Effective-dated statutory rules currently applied</h3><p className="muted">These values are configuration records, not a substitute for independent payroll review. Check the effective date for the payroll month and confirm each rate against the current official notice before posting.</p>
    <div className="table-wrap"><table><thead><tr><th>Rule</th><th>Effective from</th><th>To</th><th>Employee rate</th><th>Employer rate</th><th>Ceiling / fixed amount</th><th>PAYE deduction</th></tr></thead><tbody>
-    {rules.map(r=><tr key={r.id}><td>{r.code}</td><td>{r.effective_from}</td><td>{r.effective_to||"Open"}</td><td>{(Number(r.employee_rate)*100).toFixed(3)}%</td><td>{(Number(r.employer_rate)*100).toFixed(3)}%</td><td>{r.ceiling?money(r.ceiling,currency):r.fixed_employee?money(r.fixed_employee,currency):r.minimum_employee?money(r.minimum_employee,currency):"—"}</td><td>{r.deductible_for_paye?"Yes":"No"}</td></tr>)}
+    {rules.map(r=><tr key={r.id}><td>{r.code}</td><td>{r.effective_from}</td><td>{r.effective_to||"Open"}</td><td>{(Number(r.employee_rate)*100).toFixed(3)}%</td><td>{(Number(r.employer_rate)*100).toFixed(3)}%</td><td>{r.ceiling?money(r.ceiling,currency):r.fixed_employer?money(r.fixed_employer,currency):r.fixed_employee?money(r.fixed_employee,currency):r.minimum_employee?money(r.minimum_employee,currency):"—"}</td><td>{r.deductible_for_paye?"Yes":"No"}</td></tr>)}
    </tbody></table></div>
    <div className="table-wrap"><table><thead><tr><th>PAYE lower bound</th><th>Upper bound</th><th>Rate</th><th>Effective from</th></tr></thead><tbody>{bands.map((b,i)=><tr key={b.id}><td>{money(b.lower_bound,currency)}</td><td>{b.upper_bound?money(b.upper_bound,currency):"No upper limit"}</td><td>{(Number(b.rate)*100).toFixed(2)}%</td><td>{b.effective_from}</td></tr>)}</tbody></table></div>
    {canAdmin&&<p className="muted">School administrators can maintain school-specific effective-dated overrides through the payroll rules API. Global statutory defaults are read-only.</p>}
