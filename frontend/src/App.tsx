@@ -270,6 +270,19 @@ export default function App() {
     event.preventDefault();
     await submitAction(`${schoolBase}/billing/payments/`,{student:Number(form.student),payment_date:form.payment_date||today,method:form.method||"MPESA",amount:form.amount,transaction_reference:form.transaction_reference||"",notes:form.payment_notes||"",allocations:[{invoice_id:Number(form.invoice_id),amount:form.amount}]},"Payment received and receipt recorded.");
   }
+
+  async function initiateParentStkPush(event:FormEvent) {
+    event.preventDefault();
+    if(!navigator.onLine) { setError("STK Push requires an active internet connection."); return; }
+    setBusy(true); clearMessages();
+    try {
+      const result=await api<Row>(`/api/daraja/schools/${school.id}/stk-push/`,{
+        method:"POST",body:JSON.stringify({invoice:Number(form.invoice_id),phone_number:form.stk_phone}),
+      });
+      setSuccess(`STK Push sent to ${form.stk_phone}. Ask the parent to approve the prompt on their phone. Checkout reference: ${result.checkout_request_id}`);
+    } catch(e) { setError(errorText(e)); }
+    finally { setBusy(false); }
+  }
   async function createSupplier(event:FormEvent) {
     event.preventDefault();
     await submitAction(schoolBase + "/expenses/suppliers/",{name:form.supplier_name,contact_person:form.contact_person||"",phone:form.supplier_phone||"",email:form.supplier_email||"",tax_pin:form.tax_pin||"",address:form.supplier_address||""},"Supplier saved.");
@@ -431,6 +444,16 @@ export default function App() {
         </div>}
         {canWrite&&active==="Fees & Invoices"&&<form className="entry-panel" onSubmit={createInvoice}><div className="panel-heading"><div><h2>Create fee invoice</h2><p>Create a draft, review it, then issue it to the ledger.</p></div><Plus size={18}/></div><div className="form-grid"><label>Student<select required value={form.student||""} onChange={e=>setField("student",e.target.value)}><option value="">Select student</option>{students.map(x=><option value={x.id} key={x.id}>{x.admission_number} — {x.full_name}</option>)}</select></label><label>Academic year<select required value={form.academic_year||""} onChange={e=>setField("academic_year",e.target.value)}><option value="">Select year</option>{years.map(x=><option value={x.id} key={x.id}>{x.name}</option>)}</select></label><label>Financial period<select required value={form.period||""} onChange={e=>setField("period",e.target.value)}><option value="">Select period</option>{periods.filter(x=>!x.is_locked).map(x=><option value={x.id} key={x.id}>{x.name}</option>)}</select></label><label>Fee item<select required value={form.fee_item||""} onChange={e=>setField("fee_item",e.target.value)}><option value="">Select fee item</option>{feeItems.filter(x=>x.is_active).map(x=><option value={x.id} key={x.id}>{x.name}</option>)}</select></label><label>Amount (KES)<input type="number" min="0" step="0.01" required value={form.unit_amount||""} onChange={e=>setField("unit_amount",e.target.value)}/></label><label>Invoice date<input type="date" value={form.invoice_date||today} onChange={e=>setField("invoice_date",e.target.value)}/></label><label>Due date<input type="date" value={form.due_date||today} onChange={e=>setField("due_date",e.target.value)}/></label><label>Description<input value={form.description||""} onChange={e=>setField("description",e.target.value)}/></label></div><button className="primary" disabled={busy||!students.length||!years.length||!periods.length||!feeItems.length}>Create draft invoice</button>{(!years.length||!periods.length||!feeItems.length)&&<small className="muted">Setup required: add an academic year, financial period, chart of accounts, billing settings and fee items before invoicing.</small>}</form>}
         {canWrite&&active==="Payments & Receipts"&&<form className="entry-panel" onSubmit={createPayment}><div className="panel-heading"><div><h2>Record fee payment</h2><p>Allocate a receipt to an issued student invoice.</p></div><Plus size={18}/></div><div className="form-grid"><label>Student<select required value={form.student||""} onChange={e=>{setField("student",e.target.value);setField("invoice_id","");}}><option value="">Select student</option>{students.map(x=><option value={x.id} key={x.id}>{x.admission_number} — {x.full_name}</option>)}</select></label><label>Invoice<select required value={form.invoice_id||""} onChange={e=>setField("invoice_id",e.target.value)}><option value="">Select invoice</option>{invoices.filter(x=>String(x.student)===form.student&&["ISSUED","PART_PAID"].includes(x.status)).map(x=><option value={x.id} key={x.id}>{x.invoice_number} · Balance {money(x.balance,school.currency)}</option>)}</select></label><label>Amount received<input required type="number" min="0.01" step="0.01" value={form.amount||""} onChange={e=>setField("amount",e.target.value)}/></label><label>Payment method<select value={form.method||"MPESA"} onChange={e=>setField("method",e.target.value)}><option value="MPESA">M-Pesa</option><option value="CASH">Cash</option><option value="BANK">Bank</option></select></label><label>Payment date<input type="date" value={form.payment_date||today} onChange={e=>setField("payment_date",e.target.value)}/></label><label>M-Pesa / bank reference<input value={form.transaction_reference||""} onChange={e=>setField("transaction_reference",e.target.value)}/></label></div><button className="primary" disabled={busy||!form.invoice_id}>Record payment and issue receipt</button></form>}
+        {canWrite&&active==="Payments & Receipts"&&<form className="entry-panel" onSubmit={initiateParentStkPush}>
+          <div className="panel-heading"><div><h2>Request M-Pesa payment (STK Push)</h2><p>Send a Safaricom payment prompt for the selected issued invoice.</p></div><Wallet size={18}/></div>
+          <div className="form-grid">
+            <label>Student<select required value={form.student||""} onChange={e=>{setField("student",e.target.value);setField("invoice_id","");}}><option value="">Select student</option>{students.map(x=><option value={x.id} key={x.id}>{x.admission_number} — {x.full_name}</option>)}</select></label>
+            <label>Invoice<select required value={form.invoice_id||""} onChange={e=>setField("invoice_id",e.target.value)}><option value="">Select invoice</option>{invoices.filter(x=>String(x.student)===form.student&&["ISSUED","PART_PAID"].includes(x.status)&&Number(x.balance)>0).map(x=><option value={x.id} key={x.id}>{x.invoice_number} · Balance {money(x.balance,school.currency)}</option>)}</select></label>
+            <label>Parent mobile number<input required inputMode="tel" placeholder="07XXXXXXXX or 2547XXXXXXXX" value={form.stk_phone||""} onChange={e=>setField("stk_phone",e.target.value)}/></label>
+          </div>
+          <button className="primary" disabled={busy||!form.invoice_id||!form.stk_phone}>Send STK Push</button>
+          <small className="muted">The payment is only receipted after a successful callback and Daraja STK Query verification. Sandbox/production credentials must be configured on the API host.</small>
+        </form>}
 
 
         {canWrite&&active==="Expenses & Suppliers"&&<section className="entry-panel">
