@@ -73,3 +73,18 @@ class BillingApiTests(TestCase):
         }, format="json")
         self.assertEqual(response.status_code, 400)
         self.assertEqual(Payment.objects.count(), 0)
+
+
+    def test_duplicate_mpesa_reference_is_rejected(self):
+        invoice = self.make_invoice()
+        self.client.post(f"/api/schools/{self.school.pk}/billing/invoices/{invoice['id']}/issue/", {}, format="json")
+        payload = {
+            "student": self.student.pk, "payment_date": "2026-02-03", "method": "MPESA",
+            "amount": "1000.00", "transaction_reference": "MPESA-DUPLICATE",
+            "allocations": [{"invoice_id": invoice["id"], "amount": "1000.00"}],
+        }
+        first = self.client.post(f"/api/schools/{self.school.pk}/billing/payments/", payload, format="json")
+        second = self.client.post(f"/api/schools/{self.school.pk}/billing/payments/", payload, format="json")
+        self.assertEqual(first.status_code, 201, first.data)
+        self.assertEqual(second.status_code, 400)
+        self.assertEqual(Payment.objects.filter(transaction_reference="MPESA-DUPLICATE").count(), 1)
