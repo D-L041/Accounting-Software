@@ -222,8 +222,14 @@ class TrialBalanceApiTests(TestCase):
         self.user = get_user_model().objects.create_user(username="report-user", password="not-for-production")
         self.school = School.objects.create(name="Report School", code="report-school")
         SchoolMembership.objects.create(school=self.school, user=self.user, role="ACCOUNTANT")
+        from billing.models import SchoolBillingSettings
+        self.previous_period = FinancialPeriod.objects.create(school=self.school, name="FY25", starts_on="2025-01-01", ends_on="2025-12-31")
         self.period = FinancialPeriod.objects.create(school=self.school, name="FY26", starts_on="2026-01-01", ends_on="2026-12-31")
         self.cash = Account.objects.create(school=self.school, code="1000", name="Cash", category="ASSET")
+        SchoolBillingSettings.objects.create(
+            school=self.school, receivables_account=self.cash,
+            cash_account=self.cash, bank_account=self.cash, mpesa_account=self.cash,
+        )
         self.income = Account.objects.create(school=self.school, code="4000", name="Fees", category="INCOME")
         self.client = APIClient()
         self.client.force_authenticate(self.user)
@@ -277,3 +283,28 @@ class FinancialStatementApiTests(TestCase):
         self.assertEqual(balance.data["total_assets"], Decimal("100.00"))
         self.assertEqual(balance.data["retained_surplus_deficit"], Decimal("100.00"))
         self.assertTrue(balance.data["is_balanced"])
+
+    def test_cash_flow_includes_prior_posted_opening_balance(self):
+        opening = JournalEntry.objects.create(
+            school=self.school, reference="OPEN-001", description="Opening cash",
+            period=self.previous_period, created_by=self.user, entry_date="2025-12-31",
+        )
+        JournalLine.objects.create(entry=opening, account=self.cash, debit=Decimal("500.00"))
+        JournalLine.objects.create(entry=opening, account=self.income, credit=Decimal("500.00"))
+        opening.post()
+
+        self.post_journal("FEES-CF-001", self.cash, self.income, "125.00")
+        self.post_journal("REPAIR-CF-001", self.expense, self.cash, "25.00")
+        response = self.client.get(
+            f"/api/schools/{self.school.pk}/ledger/reports/cash-flow/?period={self.period.pk}"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["opening_balance_included"])
+        self.assertEqual(response.data["opening_balance"], Decimal("500.00"))
+        self.assertEqual(response.data["total_inflows"], Decimal("125.00"))
+        self.assertEqual(response.data["total_outflows"], Decimal("25.00"))
+        self.assertEqual(response.data["net_cash_movement"], Decimal("100.00"))
+        self.assertEqual(response.data["closing_balance"], Decimal("600.00"))
+        self.assertEqual(response.data["transactions"][0]["movement_balance"], Decimal("625.00"))
+        self.assertEqual(response.data["transactions"][1]["movement_balance"], Decimal("600.00"))
