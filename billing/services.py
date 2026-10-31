@@ -1,13 +1,15 @@
 from decimal import Decimal
 
+from django.db import models
+
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from accounts.models import Student
-from ledger.models import Account, JournalEntry, JournalLine
+from ledger.models import Account, FinancialPeriod, JournalEntry, JournalLine
 from auditlog.services import record_event
 
-from .models import FeeSchedule, Invoice, InvoiceLine, Payment, PaymentAllocation, SchoolBillingSettings
+from .models import CreditNote, CreditNoteLine, FeeSchedule, Invoice, InvoiceLine, Payment, PaymentAllocation, PaymentRefund, SchoolBillingSettings
 
 
 def _next_number(model, school, prefix, field):
@@ -91,7 +93,7 @@ def record_payment(*, school, student, payment_date, method, amount, allocations
         invoice = Invoice.objects.select_for_update().get(pk=item["invoice_id"], school=school, student=student)
         if invoice.status not in {Invoice.Status.ISSUED, Invoice.Status.PART_PAID}:
             raise ValidationError(f"Invoice {invoice.invoice_number} is not open for payment.")
-        allocated = sum((a.amount for a in invoice.allocations.all()), Decimal("0.00"))
+        allocated = invoice.amount_paid
         allocation_amount = Decimal(str(item["amount"])).quantize(Decimal("0.01"))
         if allocation_amount <= 0 or allocation_amount > invoice.total_amount - allocated:
             raise ValidationError(f"Allocation exceeds the outstanding balance on {invoice.invoice_number}.")
@@ -201,3 +203,130 @@ def generate_fee_schedule_invoices(schedule_id, user):
         metadata={"generated_count": len(generated), "skipped_existing_count": skipped, "invoice_ids": generated},
     )
     return {"generated_count": len(generated), "skipped_existing_count": skipped, "invoice_ids": generated}
+
+@transaction.atomic
+def post_credit_note(credit_note_id, user):
+    note = CreditNote.objects.select_for_update().select_related(
+        "school", "invoice", "period"
+    ).get(pk=credit_note_id)
+    invoice = Invoice.objects.select_for_update().select_related("school", "period").get(pk=note.invoice_id)
+    if note.status != CreditNote.Status.DRAFT:
+        raise ValidationError("Only draft credit notes can be posted.")
+    if invoice.status in (Invoice.Status.DRAFT, Invoice.Status.VOID):
+        raise ValidationError("Credit notes can only be posted against issued invoices.")
+    if note.period.is_locked:
+        raise ValidationError("Cannot post a credit note into a locked financial period.")
+    lines = list(note.lines.select_related("invoice_line__fee_item__income_account"))
+    if not lines:
+        raise ValidationError("A credit note must contain at least one invoice line.")
+    total = sum((line.amount for line in lines), Decimal("0.00"))
+    if total <= 0:
+        raise ValidationError("Credit note amount must be greater than zero.")
+    for line in lines:
+        posted_credit = CreditNoteLine.objects.filter(
+            invoice_line=line.invoice_line, credit_note__status=CreditNote.Status.POSTED
+        ).aggregate(total=models.Sum("amount"))["total"] or Decimal("0.00")
+        if posted_credit + line.amount > line.invoice_line.amount:
+            raise ValidationError("Credit note exceeds the uncredited amount on an invoice line.")
+    settings = SchoolBillingSettings.objects.select_related("receivables_account").filter(school=note.school).first()
+    if settings is None:
+        raise ValidationError("Configure school receivables account before posting credit notes.")
+    journal = JournalEntry.objects.create(
+        school=note.school, reference=f"CN-{note.credit_note_number}",
+        description=f"Credit note {note.credit_note_number} for invoice {invoice.invoice_number}",
+        entry_date=note.credit_date, period=note.period, created_by=user,
+    )
+    for line in lines:
+        JournalLine.objects.create(
+            entry=journal, account=line.invoice_line.fee_item.income_account,
+            description=f"Credit: {line.invoice_line.description or line.invoice_line.fee_item.name}",
+            debit=line.amount,
+        )
+    JournalLine.objects.create(
+        entry=journal, account=settings.receivables_account,
+        description=f"Credit against invoice {invoice.invoice_number}", credit=total,
+    )
+    journal.post(actor=user)
+    note.journal_entry = journal
+    note.status = CreditNote.Status.POSTED
+    note.save(update_fields=["journal_entry", "status"])
+    record_event(
+        school=note.school, actor=user, action="CREDIT_NOTE_POSTED",
+        entity_type="CreditNote", entity_id=note.pk,
+        summary=f"Posted credit note {note.credit_note_number}",
+        metadata={"invoice_id": invoice.pk, "amount": str(total), "journal_entry_id": journal.pk},
+    )
+    return note
+
+
+@transaction.atomic
+def record_payment_refund(payment_id, user, *, invoice, period, payment_account, refund_date, amount, reference=""):
+    payment = Payment.objects.select_for_update().select_related("school", "student").get(pk=payment_id)
+    invoice = Invoice.objects.select_for_update().get(pk=invoice.pk, school=payment.school)
+    if not payment.journal_entry_id or not payment.journal_entry.posted:
+        raise ValidationError("Only a posted payment can be refunded.")
+    if invoice.student_id != payment.student_id:
+        raise ValidationError("Payment and invoice must belong to the same student.")
+    if invoice.status in (Invoice.Status.DRAFT, Invoice.Status.VOID):
+        raise ValidationError("Refunds can only be allocated to issued invoices.")
+    if period.school_id != payment.school_id or payment_account.school_id != payment.school_id:
+        raise ValidationError("Refund period and payment account must belong to this school.")
+    if period.is_locked:
+        raise ValidationError("Cannot record a refund in a locked financial period.")
+    if payment_account.category != Account.Category.ASSET or not payment_account.is_active:
+        raise ValidationError("Choose an active cash, bank or M-Pesa asset account.")
+    refund_date = PaymentRefund._meta.get_field("refund_date").to_python(refund_date)
+    period_start = FinancialPeriod._meta.get_field("starts_on").to_python(period.starts_on)
+    period_end = FinancialPeriod._meta.get_field("ends_on").to_python(period.ends_on)
+    if not (period_start <= refund_date <= period_end):
+        raise ValidationError("Refund date must fall within its financial period.")
+    amount = Decimal(str(amount)).quantize(Decimal("0.01"))
+    if amount <= 0:
+        raise ValidationError("Refund amount must be greater than zero.")
+    allocation = PaymentAllocation.objects.filter(payment=payment, invoice=invoice).first()
+    if allocation is None:
+        raise ValidationError("The selected payment was not allocated to this invoice.")
+    already_refunded = PaymentRefund.objects.filter(payment=payment, invoice=invoice).aggregate(
+        total=models.Sum("amount")
+    )["total"] or Decimal("0.00")
+    if amount + already_refunded > allocation.amount:
+        raise ValidationError("Refund exceeds the unrefunded amount allocated to this invoice.")
+    settings = SchoolBillingSettings.objects.filter(school=payment.school).first()
+    if settings is None:
+        raise ValidationError("Configure school billing accounts before recording refunds.")
+    refund = PaymentRefund.objects.create(
+        payment=payment, invoice=invoice, period=period, payment_account=payment_account,
+        refund_date=refund_date, amount=amount, reference=reference, recorded_by=user,
+    )
+    journal = JournalEntry.objects.create(
+        school=payment.school, reference=f"REF-{payment.receipt_number}-{payment.refunds.count():03d}",
+        description=f"Refund of receipt {payment.receipt_number}",
+        entry_date=refund_date, period=period, created_by=user,
+    )
+    JournalLine.objects.create(
+        entry=journal, account=settings.receivables_account,
+        description=f"Reopen receivable for invoice {invoice.invoice_number}", debit=amount,
+    )
+    JournalLine.objects.create(
+        entry=journal, account=payment_account,
+        description=f"Refund {reference}".strip(), credit=amount,
+    )
+    journal.post(actor=user)
+    refund.journal_entry = journal
+    refund.save(update_fields=["journal_entry"])
+    invoice.refresh_from_db()
+    if invoice.balance <= 0:
+        invoice.status = Invoice.Status.PAID
+    elif invoice.amount_paid > 0:
+        invoice.status = Invoice.Status.PART_PAID
+    else:
+        invoice.status = Invoice.Status.ISSUED
+    invoice.save(update_fields=["status"])
+    record_event(
+        school=payment.school, actor=user, action="PAYMENT_REFUNDED",
+        entity_type="PaymentRefund", entity_id=refund.pk,
+        summary=f"Refunded {amount} from receipt {payment.receipt_number}",
+        metadata={"payment_id": payment.pk, "invoice_id": invoice.pk, "amount": str(amount), "journal_entry_id": journal.pk},
+    )
+    return refund
+
