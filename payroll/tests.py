@@ -345,3 +345,14 @@ class PayrollWorkflowTests(TestCase):
         )
         self.assertEqual(exported.status_code, 200)
         self.assertIn("5000.00,5000.00", exported.content.decode("utf-8"))
+
+
+    def test_viewer_cannot_read_employee_or_payroll_records(self):
+        SchoolMembership.objects.filter(school=self.school, user=self.user).update(role="VIEWER")
+        for path in (
+            f"/api/schools/{self.school.pk}/payroll/employees/",
+            f"/api/schools/{self.school.pk}/payroll/runs/",
+            f"/api/schools/{self.school.pk}/payroll/settings/",
+        ):
+            response = self.client.get(path)
+            self.assertEqual(response.status_code, 403, path)
