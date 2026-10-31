@@ -142,6 +142,7 @@ class PayrollSettings(models.Model):
     housing_levy_payable_account = models.ForeignKey(Account, on_delete=models.PROTECT, related_name="payroll_housing_settings")
     other_deductions_payable_account = models.ForeignKey(Account, on_delete=models.PROTECT, related_name="payroll_other_deductions_settings")
     nita_payable_account = models.ForeignKey(Account, null=True, blank=True, on_delete=models.PROTECT, related_name="payroll_nita_settings")
+    additional_pension_payable_account = models.ForeignKey(Account, null=True, blank=True, on_delete=models.PROTECT, related_name="payroll_pension_settings")
 
     def clean(self):
         super().clean()
@@ -153,6 +154,7 @@ class PayrollSettings(models.Model):
             (self.shif_payable_account, Account.Category.LIABILITY, "shif_payable_account"),
             (self.housing_levy_payable_account, Account.Category.LIABILITY, "housing_levy_payable_account"),
             (self.nita_payable_account, Account.Category.LIABILITY, "nita_payable_account"),
+            (self.additional_pension_payable_account, Account.Category.LIABILITY, "additional_pension_payable_account"),
             (self.other_deductions_payable_account, Account.Category.LIABILITY, "other_deductions_payable_account"),
         ]
         errors = {}
