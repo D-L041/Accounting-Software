@@ -163,12 +163,17 @@ class PayrollRunViewSet(SchoolPayrollViewSet, viewsets.GenericViewSet):
             "REGISTER": (
                 ["Employee number", "Employee name", "Payroll month", "Status", "Gross pay", "Taxable pay",
                  "PAYE", "NSSF employee", "NSSF employer", "SHIF", "Housing levy employee",
-                 "Housing levy employer", "NITA employer", "Other deductions", "Net pay"],
+                 "Housing levy employer", "NITA employer", "Insurance premium claimed", "Insurance relief",
+                 "Mortgage interest deduction", "Post-retirement medical deduction", "Additional pension employee",
+                 "Additional pension allowable", "Tax-exempt income", "Other deductions", "Net pay"],
                 lambda line: [
                     line.employee.employee_number, line.employee.full_name, run.payroll_month.isoformat(),
                     run.status, line.gross_pay, line.taxable_pay, line.paye, line.nssf_employee,
                     line.nssf_employer, line.shif_employee, line.housing_levy_employee,
-                    line.housing_levy_employer, line.nita_levy_employer, line.other_deductions, line.net_pay,
+                    line.housing_levy_employer, line.nita_levy_employer, line.insurance_premium_claimed,
+                    line.insurance_relief, line.mortgage_interest_deduction,
+                    line.post_retirement_medical_deduction, line.additional_pension_employee,
+                    line.additional_pension_allowable, line.tax_exempt_income, line.other_deductions, line.net_pay,
                 ],
             ),
             "PAYE": (
@@ -192,6 +197,11 @@ class PayrollRunViewSet(SchoolPayrollViewSet, viewsets.GenericViewSet):
                               line.gross_pay, line.housing_levy_employee, line.housing_levy_employer,
                               line.housing_levy_employee + line.housing_levy_employer],
             ),
+            "PENSION": (
+                ["Employee number", "Employee name", "Payroll month", "Employee additional pension", "Allowable PAYE pension deduction"],
+                lambda line: [line.employee.employee_number, line.employee.full_name, run.payroll_month.isoformat(),
+                              line.additional_pension_employee, line.additional_pension_allowable],
+            ),
             "NITA": (
                 ["Employee number", "Employee name", "Payroll month", "Employer NITA levy"],
                 lambda line: [line.employee.employee_number, line.employee.full_name, run.payroll_month.isoformat(),
@@ -199,7 +209,7 @@ class PayrollRunViewSet(SchoolPayrollViewSet, viewsets.GenericViewSet):
             ),
         }
         if schedule not in schedules:
-            raise ValidationError({"schedule": "Choose REGISTER, PAYE, NSSF, SHIF, AHL or NITA."})
+            raise ValidationError({"schedule": "Choose REGISTER, PAYE, NSSF, SHIF, AHL, PENSION or NITA."})
         if schedule != "REGISTER" and run.status != PayrollRun.Status.POSTED:
             raise ValidationError("Statutory schedules are available only after payroll has been posted.")
         headers, row_values = schedules[schedule]
