@@ -109,6 +109,7 @@ class PayrollSettings(models.Model):
     nssf_payable_account = models.ForeignKey(Account, on_delete=models.PROTECT, related_name="payroll_nssf_settings")
     shif_payable_account = models.ForeignKey(Account, on_delete=models.PROTECT, related_name="payroll_shif_settings")
     housing_levy_payable_account = models.ForeignKey(Account, on_delete=models.PROTECT, related_name="payroll_housing_settings")
+    other_deductions_payable_account = models.ForeignKey(Account, on_delete=models.PROTECT, related_name="payroll_other_deductions_settings")
 
     def clean(self):
         super().clean()
@@ -119,6 +120,7 @@ class PayrollSettings(models.Model):
             (self.nssf_payable_account, Account.Category.LIABILITY, "nssf_payable_account"),
             (self.shif_payable_account, Account.Category.LIABILITY, "shif_payable_account"),
             (self.housing_levy_payable_account, Account.Category.LIABILITY, "housing_levy_payable_account"),
+            (self.other_deductions_payable_account, Account.Category.LIABILITY, "other_deductions_payable_account"),
         ]
         errors = {}
         for account, category, field in expected:
