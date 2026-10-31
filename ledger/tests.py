@@ -240,3 +240,37 @@ class TrialBalanceApiTests(TestCase):
         other_period = FinancialPeriod.objects.create(school=other, name="FY26", starts_on="2026-01-01", ends_on="2026-12-31")
         response = self.client.get(f"/api/schools/{self.school.pk}/ledger/reports/trial-balance/?period={other_period.pk}")
         self.assertEqual(response.status_code, 404)
+
+
+class FinancialStatementApiTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="statements-user", password="not-for-production")
+        self.school = School.objects.create(name="Statement School", code="statement-school")
+        SchoolMembership.objects.create(school=self.school, user=self.user, role="ACCOUNTANT")
+        self.period = FinancialPeriod.objects.create(school=self.school, name="FY26", starts_on="2026-01-01", ends_on="2026-12-31")
+        self.cash = Account.objects.create(school=self.school, code="1000", name="Cash", category="ASSET")
+        self.income = Account.objects.create(school=self.school, code="4000", name="Fees", category="INCOME")
+        self.expense = Account.objects.create(school=self.school, code="5000", name="Repairs", category="EXPENSE")
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def post_journal(self, reference, debit_account, credit_account, amount):
+        entry = JournalEntry.objects.create(school=self.school, reference=reference, description=reference, period=self.period, created_by=self.user, entry_date="2026-04-01")
+        JournalLine.objects.create(entry=entry, account=debit_account, debit=Decimal(amount))
+        JournalLine.objects.create(entry=entry, account=credit_account, credit=Decimal(amount))
+        entry.post()
+
+    def test_income_expenditure_and_balance_sheet_reconcile(self):
+        self.post_journal("FEES-001", self.cash, self.income, "125.00")
+        self.post_journal("REPAIR-001", self.expense, self.cash, "25.00")
+        base = f"/api/schools/{self.school.pk}/ledger/reports/"
+        income = self.client.get(base + f"income-expenditure/?period={self.period.pk}")
+        balance = self.client.get(base + f"balance-sheet/?period={self.period.pk}")
+        self.assertEqual(income.status_code, 200)
+        self.assertEqual(income.data["total_income"], Decimal("125.00"))
+        self.assertEqual(income.data["total_expenditure"], Decimal("25.00"))
+        self.assertEqual(income.data["surplus_deficit"], Decimal("100.00"))
+        self.assertEqual(balance.status_code, 200)
+        self.assertEqual(balance.data["total_assets"], Decimal("100.00"))
+        self.assertEqual(balance.data["retained_surplus_deficit"], Decimal("100.00"))
+        self.assertTrue(balance.data["is_balanced"])
