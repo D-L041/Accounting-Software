@@ -25,7 +25,8 @@ A green frontend build or successful deployment alone is not sufficient for fina
 - [x] Effective-dated NITA employer levy (KES 50 per active employee per month), separate liability mapping and employer-cost posting implemented; it is not deducted from employee net pay.
 - [ ] Full payroll remains incomplete: employee-declared insurance relief, mortgage interest, post-retirement medical fund, additional pension claims, tax exemption certificates, taxable benefits in kind, statutory schedules/exports and independent Kenyan payroll-practitioner sign-off are outstanding. See `docs/PAYROLL_STATUTORY_REVIEW.md`.
 - [x] Immutable audit events for core financial posting actions and a school-scoped audit log.
-- [ ] Complete CRUD audit coverage, approval-limit configuration and procurement approval workflows.
+- [x] Purchase orders with item lines, school-configurable threshold/role rules, sequential multi-step approvals, creator/approver separation and audit events implemented.
+- [ ] Complete CRUD audit coverage and independent procurement workflow review remain outstanding.
 - [x] Downloadable PDF receipts with school-level access checks.
 - [x] Daraja STK Push initiation, persisted attempts, callback capture, STK Query verification and duplicate-safe ledger posting implemented.
 - [x] C2B callback capture/deduplication, school-scoped review queue, exact invoice-reference matching, independent Safaricom statement confirmation, duplicate transaction protection and manual receipt/ledger posting implemented.
