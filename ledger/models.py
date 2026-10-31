@@ -317,10 +317,12 @@ class BankStatementLine(models.Model):
     def clean(self):
         super().clean()
         errors = {}
-        if self.statement_id and not (
-            self.statement.statement_start <= self.transaction_date <= self.statement.statement_end
-        ):
-            errors["transaction_date"] = "Transaction date must fall within the statement dates."
+        if self.statement_id:
+            transaction_date = self._meta.get_field("transaction_date").to_python(self.transaction_date)
+            statement_start = BankStatement._meta.get_field("statement_start").to_python(self.statement.statement_start)
+            statement_end = BankStatement._meta.get_field("statement_end").to_python(self.statement.statement_end)
+            if not (statement_start <= transaction_date <= statement_end):
+                errors["transaction_date"] = "Transaction date must fall within the statement dates."
         if self.matched_journal_line_id:
             journal_line = self.matched_journal_line
             if journal_line.account_id != self.statement.account_id:
