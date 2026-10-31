@@ -1,4 +1,5 @@
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import IntegrityError
 from django.shortcuts import get_object_or_404
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
@@ -111,3 +112,5 @@ class PaymentViewSet(BillingViewSet):
             serializer.save()
         except DjangoValidationError as exc:
             raise ValidationError(exc.messages) from exc
+        except IntegrityError as exc:
+            raise ValidationError("This receipt or external payment reference has already been recorded.") from exc
