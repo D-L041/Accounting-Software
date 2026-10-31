@@ -65,7 +65,7 @@ export default function BillingAdjustmentsPanel({schoolId,currency,periods,accou
     <div className="panel-heading"><div><h2>Credit notes & payment refunds</h2><p>Post invoice adjustments and reverse money actually returned to a parent or payer.</p></div><button className="secondary" onClick={()=>void refresh()}>Refresh</button></div>
     {error&&<div className="error-banner">{error}</div>}
     {canWrite&&<div className="setup-grid">
-      <form className="entry-form" onSubmit={createCredit}>
+      <form className="entry-panel" onSubmit={createCredit}>
         <h3>Create credit note</h3>
         <label>Issued invoice<select required value={invoiceId} onChange={e=>{setInvoiceId(e.target.value);setCreditAmount("");}}><option value="">Select invoice</option>{invoices.filter(i=>!["DRAFT","VOID"].includes(i.status)).map(i=><option key={i.id} value={i.id}>{i.invoice_number} · {i.student_name} · balance {money(i.balance,currency)}</option>)}</select></label>
         <label>Financial period<select required value={periodId} onChange={e=>setPeriodId(e.target.value)}><option value="">Select period</option>{periods.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
@@ -75,7 +75,7 @@ export default function BillingAdjustmentsPanel({schoolId,currency,periods,accou
         <label>Credit amount<input type="number" step="0.01" min="0.01" max={selectedInvoice?.line_items?.[0]?.amount||undefined} required value={creditAmount} onChange={e=>setCreditAmount(e.target.value)}/></label>
         <button className="primary" disabled={busy||!selectedInvoice?.line_items?.length}>{busy?"Saving…":"Save draft credit note"}</button>
       </form>
-      <form className="entry-form" onSubmit={refund}>
+      <form className="entry-panel" onSubmit={refund}>
         <h3>Record payment refund</h3>
         <label>Original receipt<select required value={paymentId} onChange={e=>{setPaymentId(e.target.value);setRefundInvoice("");}}><option value="">Select receipt</option>{payments.map(p=><option key={p.id} value={p.id}>{p.receipt_number} · {p.student_name} · {money(p.amount,currency)}</option>)}</select></label>
         <label>Invoice to reverse<select required value={refundInvoice} onChange={e=>setRefundInvoice(e.target.value)}><option value="">Select invoice</option>{invoices.filter(i=>!["DRAFT","VOID"].includes(i.status) && (!selectedPayment||i.student===selectedPayment.student)).map(i=><option key={i.id} value={i.id}>{i.invoice_number} · {i.student_name}</option>)}</select></label>
@@ -87,7 +87,7 @@ export default function BillingAdjustmentsPanel({schoolId,currency,periods,accou
         <button className="primary" disabled={busy||!selectedPayment}>{busy?"Saving…":"Record refund"}</button>
       </form>
     </div>}
-    <div className="entry-form"><h3>Credit note register</h3>
+    <div className="entry-panel"><h3>Credit note register</h3>
       <div className="table-wrap"><table><thead><tr><th>Credit note</th><th>Invoice</th><th>Date</th><th>Reason</th><th>Amount</th><th>Status</th><th>Action</th></tr></thead><tbody>
         {notes.map(n=><tr key={n.id}><td>{n.credit_note_number}</td><td>{n.invoice_number}</td><td>{n.credit_date}</td><td>{n.reason}</td><td>{money(n.amount,currency)}</td><td>{n.status}</td><td>{n.status==="DRAFT"&&canWrite?<button className="small-action" disabled={busy} onClick={()=>void postCredit(n.id)}>Post</button>:"—"}</td></tr>)}
       </tbody></table>{!notes.length&&<p className="muted">No credit notes recorded yet.</p>}</div>
