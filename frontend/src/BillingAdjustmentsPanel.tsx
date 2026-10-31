@@ -11,7 +11,7 @@ export default function BillingAdjustmentsPanel({schoolId,currency,periods,accou
   const [invoices,setInvoices]=useState<Row[]>([]);
   const [payments,setPayments]=useState<Row[]>([]);
   const [notes,setNotes]=useState<Row[]>([]);
-  const [invoiceId,setInvoiceId]=useState("");
+  const [invoiceId,setInvoiceId]=useState("");\n  const [creditLineId,setCreditLineId]=useState("");
   const [periodId,setPeriodId]=useState("");
   const [creditDate,setCreditDate]=useState(today());
   const [reason,setReason]=useState("");
@@ -38,7 +38,7 @@ export default function BillingAdjustmentsPanel({schoolId,currency,periods,accou
     try{
       await api(`${base}/credit-notes/`,{method:"POST",body:JSON.stringify({
         invoice:Number(invoiceId),period:Number(periodId),credit_date:creditDate,reason,
-        lines:[{invoice_line:Number(selectedInvoice?.line_items?.[0]?.id),amount:creditAmount}],
+        lines:[{invoice_line:Number(creditLineId),amount:creditAmount}],
       })});
       setReason("");setCreditAmount("");await refresh();onChanged?.();
     }catch(err){setError(err instanceof Error?err.message:"Could not create credit note.");}
@@ -67,13 +67,13 @@ export default function BillingAdjustmentsPanel({schoolId,currency,periods,accou
     {canWrite&&<div className="setup-grid">
       <form className="entry-panel" onSubmit={createCredit}>
         <h3>Create credit note</h3>
-        <label>Issued invoice<select required value={invoiceId} onChange={e=>{setInvoiceId(e.target.value);setCreditAmount("");}}><option value="">Select invoice</option>{invoices.filter(i=>!["DRAFT","VOID"].includes(i.status)).map(i=><option key={i.id} value={i.id}>{i.invoice_number} · {i.student_name} · balance {money(i.balance,currency)}</option>)}</select></label>
+        <label>Issued invoice<select required value={invoiceId} onChange={e=>{setInvoiceId(e.target.value);setCreditAmount("");setCreditLineId(String(invoices.find(i=>String(i.id)===e.target.value)?.line_items?.[0]?.id||""));}}><option value="">Select invoice</option>{invoices.filter(i=>!["DRAFT","VOID"].includes(i.status)).map(i=><option key={i.id} value={i.id}>{i.invoice_number} · {i.student_name} · balance {money(i.balance,currency)}</option>)}</select></label>
         <label>Financial period<select required value={periodId} onChange={e=>setPeriodId(e.target.value)}><option value="">Select period</option>{periods.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
         <label>Credit date<input type="date" required value={creditDate} onChange={e=>setCreditDate(e.target.value)}/></label>
         <label>Reason<input required value={reason} onChange={e=>setReason(e.target.value)} placeholder="e.g. Fee overcharge adjustment"/></label>
-        <label>Invoice line<select required value={selectedInvoice?.line_items?.[0]?.id||""} disabled={!selectedInvoice}><option value="">Select invoice line</option>{(selectedInvoice?.line_items||[]).map((l:Row)=><option key={l.id} value={l.id}>{l.description||l.fee_item_name} · original {money(l.amount,currency)}</option>)}</select></label>
-        <label>Credit amount<input type="number" step="0.01" min="0.01" max={selectedInvoice?.line_items?.[0]?.amount||undefined} required value={creditAmount} onChange={e=>setCreditAmount(e.target.value)}/></label>
-        <button className="primary" disabled={busy||!selectedInvoice?.line_items?.length}>{busy?"Saving…":"Save draft credit note"}</button>
+        <label>Invoice line<select required value={creditLineId} disabled={!selectedInvoice} onChange={e=>setCreditLineId(e.target.value)}><option value="">Select invoice line</option>{(selectedInvoice?.line_items||[]).map((l:Row)=><option key={l.id} value={l.id}>{l.description||l.fee_item_name} · original {money(l.amount,currency)}</option>)}</select></label>
+        <label>Credit amount<input type="number" step="0.01" min="0.01" max={selectedInvoice?.line_items?.find((l:Row)=>String(l.id)===creditLineId)?.amount||undefined} required value={creditAmount} onChange={e=>setCreditAmount(e.target.value)}/></label>
+        <button className="primary" disabled={busy||!selectedInvoice?.line_items?.length||!creditLineId}>{busy?"Saving…":"Save draft credit note"}</button>
       </form>
       <form className="entry-panel" onSubmit={refund}>
         <h3>Record payment refund</h3>
