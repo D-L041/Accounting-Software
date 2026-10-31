@@ -123,8 +123,7 @@ class JournalEntryViewSet(SchoolLedgerViewSet):
         self.check_write_role()
         entry = self.get_object()
         try:
-            entry.post()
-            record_event(school=entry.school, actor=request.user, action="JOURNAL_POSTED", entity_type="JournalEntry", entity_id=entry.pk, summary=f"Posted journal {entry.reference}", metadata={"period_id": entry.period_id, "entry_date": entry.entry_date.isoformat()})
+            entry.post(actor=request.user)
         except DjangoValidationError as exc:
             raise ValidationError(exc.messages) from exc
         return Response(self.get_serializer(entry).data, status=status.HTTP_200_OK)
