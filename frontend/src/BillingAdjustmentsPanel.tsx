@@ -11,7 +11,8 @@ export default function BillingAdjustmentsPanel({schoolId,currency,periods,accou
   const [invoices,setInvoices]=useState<Row[]>([]);
   const [payments,setPayments]=useState<Row[]>([]);
   const [notes,setNotes]=useState<Row[]>([]);
-  const [invoiceId,setInvoiceId]=useState("");\n  const [creditLineId,setCreditLineId]=useState("");
+  const [invoiceId,setInvoiceId]=useState("");
+  const [creditLineId,setCreditLineId]=useState("");
   const [periodId,setPeriodId]=useState("");
   const [creditDate,setCreditDate]=useState(today());
   const [reason,setReason]=useState("");
