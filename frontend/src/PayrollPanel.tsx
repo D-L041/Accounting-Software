@@ -62,7 +62,7 @@ export default function PayrollPanel({schoolId,currency,periods,accounts,canWrit
     <div className="form-grid"><label>First name<input required value={employee.first_name} onChange={e=>setEmployee(v=>({...v,first_name:e.target.value}))}/></label><label>Last name<input required value={employee.last_name} onChange={e=>setEmployee(v=>({...v,last_name:e.target.value}))}/></label></div>
     <label>Job title<input value={employee.job_title} onChange={e=>setEmployee(v=>({...v,job_title:e.target.value}))}/></label>
     <div className="form-grid"><label>Basic monthly salary<input type="number" min="0" step="0.01" required value={employee.basic_salary} onChange={e=>setEmployee(v=>({...v,basic_salary:e.target.value}))}/></label><label>Regular monthly cash allowances<input type="number" min="0" step="0.01" value={employee.regular_cash_allowances} onChange={e=>setEmployee(v=>({...v,regular_cash_allowances:e.target.value}))}/></label><label>Other monthly deductions<input type="number" min="0" step="0.01" value={employee.monthly_other_deductions} onChange={e=>setEmployee(v=>({...v,monthly_other_deductions:e.target.value}))}/></label><label>Hire date<input type="date" required value={employee.hire_date} onChange={e=>setEmployee(v=>({...v,hire_date:e.target.value}))}/></label></div>
-    <details className="entry-panel"><summary>Employee tax claims and exemptions</summary><p className="muted">Enter amounts supported by current documents. Claims are excluded until verified by a school owner or administrator.</p>
+    {canAdmin&&<details className="entry-panel"><summary>Employee tax claims and exemptions</summary><p className="muted">Enter amounts supported by current documents. Claims are excluded until verified by a school owner or administrator.</p>
      <div className="form-grid">
       <label>Monthly insurance premiums<input type="number" min="0" step="0.01" value={employee.monthly_insurance_premiums} onChange={e=>setEmployee(v=>({...v,monthly_insurance_premiums:e.target.value}))}/></label>
       <label>Monthly mortgage interest<input type="number" min="0" step="0.01" value={employee.monthly_mortgage_interest} onChange={e=>setEmployee(v=>({...v,monthly_mortgage_interest:e.target.value}))}/></label>
@@ -74,7 +74,7 @@ export default function PayrollPanel({schoolId,currency,periods,accounts,canWrit
      <label>Tax exemption certificate reference<input value={employee.tax_exemption_certificate_ref} onChange={e=>setEmployee(v=>({...v,tax_exemption_certificate_ref:e.target.value}))}/></label>
      <div className="form-grid"><label>Certificate valid from<input type="date" value={employee.tax_exemption_valid_from} onChange={e=>setEmployee(v=>({...v,tax_exemption_valid_from:e.target.value}))}/></label><label>Certificate valid to<input type="date" value={employee.tax_exemption_valid_to} onChange={e=>setEmployee(v=>({...v,tax_exemption_valid_to:e.target.value}))}/></label></div>
      {canAdmin&&<label className="check-label"><input type="checkbox" checked={employee.tax_exemption_verified} onChange={e=>setEmployee(v=>({...v,tax_exemption_verified:e.target.checked}))}/> I have authenticated this exemption certificate</label>}
-    </details>
+    </details>}
     <label className="check-label"><input type="checkbox" checked={employee.is_resident} onChange={e=>setEmployee(v=>({...v,is_resident:e.target.checked}))}/> Resident individual (eligible for personal relief)</label>
     <button className="primary" disabled={busy}>{busy?"Saving…":"Add employee"}</button>
    </form>
