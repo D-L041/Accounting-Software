@@ -1,8 +1,14 @@
 from django.urls import path
 
-from .views import ExpenseBudgetViewSet, ExpenseCategoryViewSet, ExpenseViewSet, SupplierViewSet, SupplierBillViewSet
+from .views import ExpenseBudgetViewSet, ExpenseCategoryViewSet, ExpenseViewSet, SupplierViewSet, SupplierBillViewSet, PurchaseOrderViewSet, ProcurementApprovalRuleViewSet
 
 urlpatterns = [
+    path("purchase-orders/", PurchaseOrderViewSet.as_view({"get": "list", "post": "create"}), name="purchase-orders"),
+    path("purchase-orders/<int:pk>/", PurchaseOrderViewSet.as_view({"get": "retrieve", "patch": "partial_update"}), name="purchase-order-detail"),
+    path("purchase-orders/<int:pk>/submit/", PurchaseOrderViewSet.as_view({"post": "submit"}), name="purchase-order-submit"),
+    path("purchase-orders/<int:pk>/approve/", PurchaseOrderViewSet.as_view({"post": "approve"}), name="purchase-order-approve"),
+    path("procurement-approval-rules/", ProcurementApprovalRuleViewSet.as_view({"get": "list", "post": "create"}), name="procurement-approval-rules"),
+    path("procurement-approval-rules/<int:pk>/", ProcurementApprovalRuleViewSet.as_view({"patch": "partial_update", "delete": "destroy"}), name="procurement-approval-rule-detail"),
     path("budgets/", ExpenseBudgetViewSet.as_view({"get": "list", "post": "create"}), name="expense-budgets"),
     path("budgets/<int:pk>/", ExpenseBudgetViewSet.as_view({"get": "retrieve", "patch": "partial_update"}), name="expense-budget-detail"),
     path("bills/", SupplierBillViewSet.as_view({"get": "list", "post": "create"}), name="supplier-bills"),
