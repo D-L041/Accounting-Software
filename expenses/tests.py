@@ -31,7 +31,7 @@ class ExpensePostingTests(TestCase):
         }, format="json")
         self.assertEqual(response.status_code, 201, response.data)
         expense_id = response.data["id"]
-        posted = self.client.post(f"/api/schools/{self.school.pk}/expenses/expenses/{expense_id}/post/", {}, format="json")
+        posted = self.client.post(f"/api/schools/{self.school.pk}/expenses/{expense_id}/post/", {}, format="json")
         self.assertEqual(posted.status_code, 200, posted.data)
         self.assertEqual(posted.data["status"], Expense.Status.POSTED)
         journal = JournalEntry.objects.get(pk=posted.data["journal_entry"])
@@ -41,7 +41,7 @@ class ExpensePostingTests(TestCase):
 
     def test_viewer_cannot_create_expense(self):
         SchoolMembership.objects.filter(school=self.school, user=self.user).update(role="VIEWER")
-        response = self.client.post(f"/api/schools/{self.school.pk}/expenses/expenses/", {
+        response = self.client.post(f"/api/schools/{self.school.pk}/expenses/", {
             "category": self.category.pk, "period": self.period.pk, "expense_date": "2026-03-02",
             "description": "Not permitted", "amount": "100.00", "payment_method": "CASH",
         }, format="json")
