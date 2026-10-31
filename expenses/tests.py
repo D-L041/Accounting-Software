@@ -32,6 +32,7 @@ class ExpensePostingTests(TestCase):
         }, format="json")
         self.assertEqual(response.status_code, 201, response.data)
         expense_id = response.data["id"]
+        self.assertTrue(AuditEvent.objects.filter(action="EXPENSE_CREATED", entity_id=str(expense_id)).exists())
         posted = self.client.post(f"/api/schools/{self.school.pk}/expenses/{expense_id}/post/", {}, format="json")
         self.assertEqual(posted.status_code, 200, posted.data)
         self.assertEqual(posted.data["status"], Expense.Status.POSTED)
