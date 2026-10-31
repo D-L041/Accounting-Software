@@ -3,6 +3,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from accounts.models import School, SchoolMembership
+from auditlog.models import AuditEvent
 from billing.models import SchoolBillingSettings
 from ledger.models import Account, FinancialPeriod, JournalEntry
 from .models import Expense, ExpenseCategory
@@ -38,6 +39,7 @@ class ExpensePostingTests(TestCase):
         self.assertTrue(journal.posted)
         self.assertEqual(sum(line.debit for line in journal.lines.all()), sum(line.credit for line in journal.lines.all()))
         self.assertEqual(journal.lines.get(credit__gt=0).account_id, self.mpesa.pk)
+        self.assertTrue(AuditEvent.objects.filter(action="EXPENSE_POSTED", entity_id=str(expense_id)).exists())
 
     def test_viewer_cannot_create_expense(self):
         SchoolMembership.objects.filter(school=self.school, user=self.user).update(role="VIEWER")
