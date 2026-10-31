@@ -8,9 +8,9 @@ from rest_framework.response import Response
 
 from accounts.models import School, SchoolMembership
 from auditlog.services import record_event
-from .models import FeeItem, Invoice, Payment, SchoolBillingSettings
-from .serializers import FeeItemSerializer, InvoiceSerializer, PaymentSerializer, SchoolBillingSettingsSerializer
-from .services import issue_invoice
+from .models import FeeItem, FeeSchedule, Invoice, Payment, SchoolBillingSettings
+from .serializers import FeeItemSerializer, FeeScheduleSerializer, InvoiceSerializer, PaymentSerializer, SchoolBillingSettingsSerializer
+from .services import generate_fee_schedule_invoices, issue_invoice
 
 
 class BillingViewSet(viewsets.ModelViewSet):
@@ -59,6 +59,36 @@ class FeeItemViewSet(BillingViewSet):
         self.check_write_role()
         instance = serializer.save(school=self.get_school())
         record_event(school=self.get_school(), actor=self.request.user, action="FEE_ITEM_CREATED", entity_type="FeeItem", entity_id=instance.pk, summary=f"Created fee item {instance.code}")
+
+
+class FeeScheduleViewSet(BillingViewSet):
+    serializer_class = FeeScheduleSerializer
+    http_method_names = ["get", "post", "patch", "head", "options"]
+
+    def get_queryset(self):
+        return FeeSchedule.objects.filter(school=self.get_school()).select_related(
+            "academic_year", "classroom", "period"
+        ).prefetch_related("lines__fee_item", "generated_invoices")
+
+    def perform_create(self, serializer):
+        self.check_write_role()
+        schedule = serializer.save()
+        record_event(
+            school=self.get_school(), actor=self.request.user, action="FEE_SCHEDULE_CREATED",
+            entity_type="FeeSchedule", entity_id=schedule.pk,
+            summary=f"Created {schedule.term_name} fee schedule for {schedule.classroom}",
+            metadata={"academic_year_id": schedule.academic_year_id, "period_id": schedule.period_id},
+        )
+
+    @action(detail=True, methods=["post"], url_path="generate-invoices")
+    def generate_invoices(self, request, school_pk=None, pk=None):
+        self.check_write_role()
+        schedule = self.get_object()
+        try:
+            result = generate_fee_schedule_invoices(schedule.pk, request.user)
+        except DjangoValidationError as exc:
+            raise ValidationError(exc.messages) from exc
+        return Response(result, status=status.HTTP_200_OK)
 
 
 class BillingSettingsViewSet(BillingViewSet):
