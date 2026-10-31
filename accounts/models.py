@@ -56,6 +56,7 @@ class AcademicYear(models.Model):
         ordering = ["-starts_on"]
         constraints = [
             models.UniqueConstraint(fields=["school", "name"], name="unique_academic_year_name_per_school"),
+            models.UniqueConstraint(fields=["school"], condition=Q(is_current=True), name="one_current_academic_year_per_school"),
             models.CheckConstraint(condition=Q(ends_on__gte=models.F("starts_on")), name="academic_year_end_after_start"),
         ]
 
