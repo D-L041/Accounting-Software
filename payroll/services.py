@@ -186,11 +186,14 @@ def post_payroll_run(run_id, user):
     nssf = sum((line.nssf_employee + line.nssf_employer for line in lines), Decimal("0.00"))
     shif = sum((line.shif_employee for line in lines), Decimal("0.00"))
     housing = sum((line.housing_levy_employee + line.housing_levy_employer for line in lines), Decimal("0.00"))
-    other_deductions = sum((line.other_deductions + line.additional_pension_employee for line in lines), Decimal("0.00"))
+    other_deductions = sum((line.other_deductions for line in lines), Decimal("0.00"))
+    additional_pension = sum((line.additional_pension_employee for line in lines), Decimal("0.00"))
     nita = sum((line.nita_levy_employer for line in lines), Decimal("0.00"))
     employer_cost = sum((line.nssf_employer + line.housing_levy_employer + line.nita_levy_employer for line in lines), Decimal("0.00"))
     if nita > 0 and not settings.nita_payable_account_id:
         raise ValidationError("Configure a NITA payable liability account before posting payroll.")
+    if additional_pension > 0 and not settings.additional_pension_payable_account_id:
+        raise ValidationError("Configure an additional pension payable liability account before posting payroll.")
     journal = JournalEntry.objects.create(
         school=run.school, reference=f"PAY-{run.payroll_month:%Y%m}",
         description=f"Payroll for {run.payroll_month:%B %Y}",
@@ -209,6 +212,7 @@ def post_payroll_run(run_id, user):
         (settings.housing_levy_payable_account, housing, "Employee and employer housing levy payable"),
         (settings.other_deductions_payable_account, other_deductions, "Other employee deductions payable"),
         (settings.nita_payable_account, nita, "NITA employer industrial training levy payable"),
+        (settings.additional_pension_payable_account, additional_pension, "Employee additional registered pension payable"),
     ]
     for account, amount, description in credits:
         if amount > 0:
