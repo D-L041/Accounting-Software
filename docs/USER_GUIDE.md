@@ -88,3 +88,10 @@ Payroll currently covers basic monthly salary and the listed statutory calculati
 - Posted journal entries, expenses, supplier bill payments, credit notes, refunds and payroll runs are immutable. Use controlled reversal/adjustment workflows; do not edit posted financial history.
 
 Always test with synthetic data in staging before any live rollout.
+
+
+## Safaricom M-Pesa (Daraja) — staged STK Push
+
+The Payments & Receipts workspace includes an STK Push form for authorised school staff. Select an issued invoice and enter the parent's Kenyan mobile number. The API sends a prompt using server-side Daraja credentials. A receipt is posted only after the callback is matched to the saved CheckoutRequestID, Daraja STK Query reports success, and amount/phone/receipt checks pass. Duplicate checkout callbacks and duplicate M-Pesa receipt references are guarded.
+
+C2B validation and confirmation callback endpoints are available. C2B confirmations are stored idempotently for reconciliation but are not automatically allocated or posted yet. Configure the Daraja sandbox credentials and a public HTTPS callback URL on the API host before sandbox testing. Production credentials and Safaricom go-live approval are required before live use. See `docs/DARAJA_INTEGRATION.md`.
