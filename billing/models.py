@@ -58,6 +58,10 @@ class SchoolBillingSettings(models.Model):
         if errors:
             raise ValidationError(errors)
 
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
     def __str__(self):
         return f"Billing settings — {self.school.name}"
 
