@@ -18,6 +18,16 @@ class Employee(models.Model):
     basic_salary = models.DecimalField(max_digits=14, decimal_places=2)
     regular_cash_allowances = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
     monthly_other_deductions = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    monthly_insurance_premiums = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    monthly_mortgage_interest = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    monthly_post_retirement_medical = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    monthly_additional_pension = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    tax_claims_reference = models.CharField(max_length=120, blank=True)
+    tax_claims_verified = models.BooleanField(default=False)
+    tax_exemption_certificate_ref = models.CharField(max_length=100, blank=True)
+    tax_exemption_valid_from = models.DateField(null=True, blank=True)
+    tax_exemption_valid_to = models.DateField(null=True, blank=True)
+    tax_exemption_verified = models.BooleanField(default=False)
     is_resident = models.BooleanField(default=True)
     hire_date = models.DateField()
     is_active = models.BooleanField(default=True)
@@ -27,7 +37,7 @@ class Employee(models.Model):
         ordering = ["last_name", "first_name"]
         constraints = [
             models.UniqueConstraint(fields=["school", "employee_number"], name="unique_employee_number_school"),
-            models.CheckConstraint(condition=Q(basic_salary__gte=0) & Q(regular_cash_allowances__gte=0) & Q(monthly_other_deductions__gte=0), name="employee_pay_components_nonnegative"),
+            models.CheckConstraint(condition=Q(basic_salary__gte=0) & Q(regular_cash_allowances__gte=0) & Q(monthly_other_deductions__gte=0) & Q(monthly_insurance_premiums__gte=0) & Q(monthly_mortgage_interest__gte=0) & Q(monthly_post_retirement_medical__gte=0) & Q(monthly_additional_pension__gte=0), name="employee_pay_components_nonnegative"),
         ]
 
     def clean(self):
@@ -36,8 +46,26 @@ class Employee(models.Model):
             raise ValidationError({"basic_salary": "Basic salary cannot be negative."})
         if self.regular_cash_allowances < 0:
             raise ValidationError({"regular_cash_allowances": "Regular allowances cannot be negative."})
-        if self.monthly_other_deductions < 0:
-            raise ValidationError({"monthly_other_deductions": "Other deductions cannot be negative."})
+        for field in (
+            "monthly_other_deductions", "monthly_insurance_premiums",
+            "monthly_mortgage_interest", "monthly_post_retirement_medical",
+            "monthly_additional_pension",
+        ):
+            if getattr(self, field) < 0:
+                raise ValidationError({field: "Payroll amounts cannot be negative."})
+        has_tax_claims = any(getattr(self, field) > 0 for field in (
+            "monthly_insurance_premiums", "monthly_mortgage_interest",
+            "monthly_post_retirement_medical", "monthly_additional_pension",
+        ))
+        if self.tax_claims_verified and has_tax_claims and not self.tax_claims_reference.strip():
+            raise ValidationError({"tax_claims_reference": "Record the supporting document reference before verifying employee tax claims."})
+        if self.tax_exemption_valid_from and self.tax_exemption_valid_to and self.tax_exemption_valid_to < self.tax_exemption_valid_from:
+            raise ValidationError({"tax_exemption_valid_to": "Exemption certificate expiry cannot precede its start date."})
+        if self.tax_exemption_verified and (
+            not self.tax_exemption_certificate_ref.strip()
+            or not self.tax_exemption_valid_from or not self.tax_exemption_valid_to
+        ):
+            raise ValidationError("A verified tax exemption requires a certificate reference and validity dates.")
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -205,6 +233,13 @@ class PayrollLine(models.Model):
     other_earnings = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
     gross_pay = models.DecimalField(max_digits=14, decimal_places=2)
     taxable_pay = models.DecimalField(max_digits=14, decimal_places=2)
+    insurance_premium_claimed = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    insurance_relief = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    mortgage_interest_deduction = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    post_retirement_medical_deduction = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    additional_pension_employee = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    additional_pension_allowable = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    tax_exempt_income = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
     paye = models.DecimalField(max_digits=14, decimal_places=2)
     nssf_employee = models.DecimalField(max_digits=14, decimal_places=2)
     shif_employee = models.DecimalField(max_digits=14, decimal_places=2)
