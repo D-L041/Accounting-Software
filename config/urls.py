@@ -1,7 +1,9 @@
 from django.contrib import admin
 from django.urls import include, path
+from config.health_views import HealthCheckView
 
 urlpatterns = [
+    path("api/health/", HealthCheckView.as_view(), name="health-check"),
     path("admin/", admin.site.urls),
     path("api/", include("accounts.urls")),
     path("api/schools/<int:school_pk>/ledger/", include("ledger.urls")),
