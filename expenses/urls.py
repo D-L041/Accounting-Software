@@ -1,8 +1,10 @@
 from django.urls import path
 
-from .views import ExpenseCategoryViewSet, ExpenseViewSet, SupplierViewSet, SupplierBillViewSet
+from .views import ExpenseBudgetViewSet, ExpenseCategoryViewSet, ExpenseViewSet, SupplierViewSet, SupplierBillViewSet
 
 urlpatterns = [
+    path("budgets/", ExpenseBudgetViewSet.as_view({"get": "list", "post": "create"}), name="expense-budgets"),
+    path("budgets/<int:pk>/", ExpenseBudgetViewSet.as_view({"get": "retrieve", "patch": "partial_update"}), name="expense-budget-detail"),
     path("bills/", SupplierBillViewSet.as_view({"get": "list", "post": "create"}), name="supplier-bills"),
     path("bills/<int:pk>/", SupplierBillViewSet.as_view({"get": "retrieve", "patch": "partial_update"}), name="supplier-bill-detail"),
     path("bills/<int:pk>/submit/", SupplierBillViewSet.as_view({"post": "submit"}), name="supplier-bill-submit"),
