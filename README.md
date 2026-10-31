@@ -26,7 +26,8 @@ A multi-school accounting platform for Kenyan primary and secondary schools. The
 - Expense posting to the appropriate expense and cash/bank/M-Pesa accounts.
 - Secure sign-in/sign-out API and school-aware frontend workspace.
 - Frontend forms for student, class, invoice, payment, supplier and expense workflows.
-- Trial balance, income and expenditure, balance sheet and cashbook movement APIs and frontend reports.\n- Immutable audit events for journal posting, invoice issue, receipt recording, expense posting and financial-period locking, with a school-scoped audit-log view.
+- Trial balance, income and expenditure, balance sheet and cashbook movement APIs and frontend reports.
+- Immutable audit events for journal posting, invoice issue, receipt recording, expense posting and financial-period locking, with a school-scoped audit-log view.
 
 ## Financial integrity principles
 
