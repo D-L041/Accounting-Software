@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     "ledger",
     "billing",
     "expenses",
+    "payroll",
     "auditlog",
 ]
 MIDDLEWARE = [
