@@ -27,7 +27,9 @@ export async function api<T = any>(path: string, options: ApiOptions = {}): Prom
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     const detail = data.detail || Object.entries(data).map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(", ") : String(value)}`).join(" · ");
-    throw new Error(detail || `Request failed (${response.status}).`);
+    const error = new Error(detail || `Request failed (${response.status}).`);
+    Object.assign(error, { status: response.status });
+    throw error;
   }
   return data as T;
 }
