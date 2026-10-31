@@ -112,6 +112,7 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework.authentication.SessionAuthentication",
     ],
+    "DEFAULT_THROTTLE_RATES": {"login": "5/minute"},
 }
 
 if not DEBUG:
