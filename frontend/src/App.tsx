@@ -108,7 +108,7 @@ export default function App() {
       ]);
       setStudents(studentRows); setYears(yearRows); setPeriods(periodRows); setAccounts(accountRows);
       setFeeItems(feeRows); setInvoices(invoiceRows); setCategories(categoryRows); setSuppliers(supplierRows); setBillingSettings(billingRows[0] || null);
-      if (active==="Overview") setRows([...invoiceRows.slice(0,5).map(x=>({...x,record_type:"Invoice"})), ...paymentRows.slice(0,5).map(x=>({...x,record_type:"Receipt"})), ...expenseRows.slice(0,5).map(x=>({...x,record_type:"Expense"}))].sort((a,b)=>String(b.created_at||b.invoice_date||b.payment_date||b.expense_date).localeCompare(String(a.created_at||a.invoice_date||a.payment_date||a.expense_date))).slice(0,8));
+      if (active==="Overview") { const activity: Row[] = [...invoiceRows.slice(0,5).map(x=>({...x,record_type:"Invoice"})), ...paymentRows.slice(0,5).map(x=>({...x,record_type:"Receipt"})), ...expenseRows.slice(0,5).map(x=>({...x,record_type:"Expense"}))]; setRows(activity.sort((a,b)=>String(b.created_at||b.invoice_date||b.payment_date||b.expense_date).localeCompare(String(a.created_at||a.invoice_date||a.payment_date||a.expense_date))).slice(0,8)); }
       else if (active==="Students & Classes") setRows(studentRows);
       else if (active==="Fees & Invoices") setRows(invoiceRows);
       else if (active==="Payments & Receipts") setRows(paymentRows);
