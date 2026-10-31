@@ -14,6 +14,7 @@ This is an implementation review against official Kenyan guidance available on 3
 | NSSF January 2026 | 6% each up to KES 72,000 (KES 4,320 maximum each) | Separate January effective-dated rule seeded |
 | SHIF | 2.75% of gross salary, minimum KES 300 per month; employee contribution | Effective-dated employee rate and minimum seeded |
 | Affordable Housing Levy | 1.5% employee and 1.5% employer on gross monthly salary | Effective-dated rates seeded |
+| NITA industrial training levy | KES 50 per employee per month, employer-borne and not deducted from salary | Effective-dated flat employer charge calculated and posted to a separate liability account; remittance schedule outstanding |
 | PAYE taxable-pay deductions | SHIF and Affordable Housing Levy; NSSF employee pension contribution within the applicable pension deduction limit | NSSF rule corrected by migration 0002; regression test updated |
 
 ## Correction made
