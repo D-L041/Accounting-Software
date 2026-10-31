@@ -48,7 +48,7 @@ A green frontend build or successful deployment alone is not sufficient for fina
 - [ ] St Stephen School administrator and accountant acceptance sign-off received.
 - [x] Initial school administrator workflow guide documented.
 - [ ] Secure production administrator handover, access recovery and support ownership completed.
-- [ ] Final branch-head CI for the current implementation must pass backend migrations/tests, frontend production build, API container build and Python/npm dependency audits. Earlier successful CI does not cover the current offline, bank CSV, NITA or deployment changes.
+- [x] CI run `41231336112` for code commit `8ea7de2` passed: Django checks, migration drift check, all migrations, backend tests (94 passed), frontend production build, combined frontend/API Docker image build, and Python/npm dependency audits (zero known vulnerabilities).
 
 ## Release rule
 
