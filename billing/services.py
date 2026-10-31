@@ -3,7 +3,7 @@ from decimal import Decimal
 from django.db import models
 
 from django.core.exceptions import ValidationError
-from django.db import transaction
+from django.db import models, transaction
 
 from accounts.models import Student
 from ledger.models import Account, FinancialPeriod, JournalEntry, JournalLine
@@ -250,6 +250,14 @@ def post_credit_note(credit_note_id, user):
     note.journal_entry = journal
     note.status = CreditNote.Status.POSTED
     note.save(update_fields=["journal_entry", "status"])
+    invoice.refresh_from_db()
+    if invoice.balance <= 0:
+        invoice.status = Invoice.Status.PAID
+    elif invoice.amount_paid > 0:
+        invoice.status = Invoice.Status.PART_PAID
+    else:
+        invoice.status = Invoice.Status.ISSUED
+    invoice.save(update_fields=["status"])
     record_event(
         school=note.school, actor=user, action="CREDIT_NOTE_POSTED",
         entity_type="CreditNote", entity_id=note.pk,
