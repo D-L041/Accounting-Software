@@ -18,7 +18,7 @@ Implemented in the current pilot:
 - Encrypted draft expense capture, pending online server validation and idempotent synchronisation.
 
 Planned after the corresponding workflows and privacy controls are complete:
-- Draft purchase-request capture after a purchase-request model exists.
+- Draft purchase order capture now has an online model and approval workflow; offline purchase order capture remains planned only after its idempotent sync endpoint and conflict review are implemented.
 - Additional non-posting drafts where offline data exposure has been reviewed.
 - Non-sensitive interface preferences.
 
