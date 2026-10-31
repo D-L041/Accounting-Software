@@ -23,6 +23,8 @@ services:
           property: connectionString
       - key: DARAJA_ENV
         value: sandbox
+      - key: DARAJA_CALLBACK_URL
+        value: https://precious-schoolbooks.onrender.com/api/daraja/callbacks/stk/
 
 databases:
   - name: precious-schoolbooks-db
