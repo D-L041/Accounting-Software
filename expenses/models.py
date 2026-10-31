@@ -303,3 +303,122 @@ class ExpenseBudget(models.Model):
     @property
     def variance(self):
         return self.budget_amount - self.actual_amount
+
+
+class ProcurementApprovalRule(models.Model):
+    """School-specific approval step triggered when an order reaches min_amount."""
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="procurement_approval_rules")
+    min_amount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    step_number = models.PositiveSmallIntegerField(default=1)
+    approver_role = models.CharField(max_length=20, choices=[
+        ("OWNER", "Owner"), ("ADMIN", "Administrator"), ("ACCOUNTANT", "Accountant"),
+    ])
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["min_amount", "step_number"]
+        constraints = [
+            models.UniqueConstraint(fields=["school", "min_amount", "step_number"], name="unique_procurement_rule_step"),
+            models.CheckConstraint(condition=Q(min_amount__gte=0), name="procurement_rule_min_nonnegative"),
+            models.CheckConstraint(condition=Q(step_number__gte=1), name="procurement_rule_step_positive"),
+        ]
+
+
+class PurchaseOrder(models.Model):
+    class Status(models.TextChoices):
+        DRAFT = "DRAFT", "Draft"
+        SUBMITTED = "SUBMITTED", "Submitted"
+        APPROVED = "APPROVED", "Approved"
+        REJECTED = "REJECTED", "Rejected"
+        CLOSED = "CLOSED", "Closed"
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="purchase_orders")
+    supplier = models.ForeignKey(Supplier, on_delete=models.PROTECT, related_name="purchase_orders")
+    period = models.ForeignKey(FinancialPeriod, on_delete=models.PROTECT, related_name="purchase_orders")
+    order_number = models.CharField(max_length=40)
+    order_date = models.DateField()
+    expected_date = models.DateField(null=True, blank=True)
+    description = models.CharField(max_length=255)
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.DRAFT)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="created_purchase_orders")
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-order_date", "-id"]
+        constraints = [
+            models.UniqueConstraint(fields=["school", "order_number"], name="unique_purchase_order_number_school"),
+        ]
+
+    @property
+    def total_amount(self):
+        return sum((line.line_total for line in self.lines.all()), Decimal("0.00"))
+
+    def clean(self):
+        super().clean()
+        errors = {}
+        if self.supplier_id and self.supplier.school_id != self.school_id:
+            errors["supplier"] = "Supplier must belong to this school."
+        if self.period_id and self.period.school_id != self.school_id:
+            errors["period"] = "Financial period must belong to this school."
+        if self.order_date and self.period_id:
+            if not (self.period.starts_on <= self.order_date <= self.period.ends_on):
+                errors["order_date"] = "Order date must fall within the selected financial period."
+        if self.expected_date and self.order_date and self.expected_date < self.order_date:
+            errors["expected_date"] = "Expected delivery cannot be before the order date."
+        if errors:
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        if self.pk and PurchaseOrder.objects.filter(pk=self.pk).exclude(status=self.Status.DRAFT).exists():
+            raise ValidationError("Submitted purchase orders are immutable.")
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        if self.status != self.Status.DRAFT:
+            raise ValidationError("Only draft purchase orders can be deleted.")
+        return super().delete(*args, **kwargs)
+
+
+class PurchaseOrderLine(models.Model):
+    purchase_order = models.ForeignKey(PurchaseOrder, on_delete=models.CASCADE, related_name="lines")
+    description = models.CharField(max_length=255)
+    quantity = models.DecimalField(max_digits=12, decimal_places=3)
+    unit_cost = models.DecimalField(max_digits=14, decimal_places=2)
+
+    class Meta:
+        ordering = ["id"]
+        constraints = [
+            models.CheckConstraint(condition=Q(quantity__gt=0), name="purchase_order_line_qty_positive"),
+            models.CheckConstraint(condition=Q(unit_cost__gte=0), name="purchase_order_line_cost_nonnegative"),
+        ]
+
+    @property
+    def line_total(self):
+        return (self.quantity * self.unit_cost).quantize(Decimal("0.01"))
+
+    def clean(self):
+        super().clean()
+        if self.purchase_order_id and self.purchase_order.status != PurchaseOrder.Status.DRAFT:
+            raise ValidationError("Lines on submitted purchase orders are immutable.")
+        if self.quantity <= 0 or self.unit_cost < 0:
+            raise ValidationError("Quantity must be positive and unit cost cannot be negative.")
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+
+class PurchaseOrderApproval(models.Model):
+    purchase_order = models.ForeignKey(PurchaseOrder, on_delete=models.PROTECT, related_name="approvals")
+    step_number = models.PositiveSmallIntegerField()
+    approver_role = models.CharField(max_length=20)
+    approved_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT)
+    approved_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["step_number"]
+        constraints = [
+            models.UniqueConstraint(fields=["purchase_order", "step_number"], name="unique_purchase_order_approval_step"),
+        ]
