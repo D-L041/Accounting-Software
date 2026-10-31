@@ -112,7 +112,8 @@ class BillingApiTests(TestCase):
         self.assertEqual(response.data["total_receipts"], Decimal("2500.00"))
         self.assertEqual(response.data["total_payments"], Decimal("0.00"))
         self.assertEqual(len(response.data["transactions"]), 1)
-        self.assertFalse(response.data["opening_balance_included"])
+        self.assertTrue(response.data["opening_balance_included"])
+        self.assertEqual(response.data["opening_balance_total"], Decimal("0.00"))
 
 
     def test_class_term_fee_schedule_generates_draft_invoices_idempotently(self):
