@@ -191,9 +191,13 @@ class PayrollRunViewSet(SchoolPayrollViewSet, viewsets.GenericViewSet):
                 ],
             ),
             "PAYE": (
-                ["Employee PIN/number", "Employee name", "Payroll month", "Gross pay", "Taxable pay", "PAYE"],
+                ["Employee number (KRA PIN capture pending)", "Employee name", "Payroll month", "Gross pay",
+                 "Taxable pay", "PAYE", "Insurance relief", "Mortgage interest deduction",
+                 "Post-retirement medical deduction", "Allowable pension deduction", "Tax-exempt income"],
                 lambda line: [line.employee.employee_number, line.employee.full_name, run.payroll_month.isoformat(),
-                              line.gross_pay, line.taxable_pay, line.paye],
+                              line.gross_pay, line.taxable_pay, line.paye, line.insurance_relief,
+                              line.mortgage_interest_deduction, line.post_retirement_medical_deduction,
+                              line.additional_pension_allowable, line.tax_exempt_income],
             ),
             "NSSF": (
                 ["Employee number", "Employee name", "Payroll month", "Employee NSSF", "Employer NSSF", "Total NSSF"],
