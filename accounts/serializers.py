@@ -17,6 +17,13 @@ class AcademicYearSerializer(serializers.ModelSerializer):
         fields = ["id", "name", "starts_on", "ends_on", "is_current"]
         read_only_fields = ["id"]
 
+    def validate(self, attrs):
+        starts_on = attrs.get("starts_on", getattr(self.instance, "starts_on", None))
+        ends_on = attrs.get("ends_on", getattr(self.instance, "ends_on", None))
+        if starts_on and ends_on and ends_on < starts_on:
+            raise serializers.ValidationError({"ends_on": "Academic year end must not precede its start."})
+        return attrs
+
 
 class ClassRoomSerializer(serializers.ModelSerializer):
     academic_year_name = serializers.CharField(source="academic_year.name", read_only=True)
