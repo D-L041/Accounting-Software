@@ -62,7 +62,6 @@ class PayrollWorkflowTests(TestCase):
                 "housing_levy_payable_account": self.housing.pk,
                 "other_deductions_payable_account": self.other_deductions.pk,
                 "nita_payable_account": self.nita.pk,
-                "nita_payable_account": self.nita.pk,
             }, format="json",
         )
 
