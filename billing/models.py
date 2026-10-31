@@ -176,6 +176,10 @@ class Payment(models.Model):
         if self.student_id and self.student.school_id != self.school_id:
             raise ValidationError({"student": "Student must belong to this school."})
 
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
     def __str__(self):
         return self.receipt_number
 
@@ -196,3 +200,7 @@ class PaymentAllocation(models.Model):
         if self.payment_id and self.invoice_id:
             if self.payment.school_id != self.invoice.school_id or self.payment.student_id != self.invoice.student_id:
                 raise ValidationError("Payment and invoice must belong to the same school and student.")
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
