@@ -386,7 +386,7 @@ export default function App() {
     <aside className={menu?"sidebar open":"sidebar"}>
       <div className="brand"><div className="crest"><GraduationCap size={24}/></div><div><strong>PRECIOUS</strong><small>SCHOOLBOOKS</small></div></div>
       <div className="school-tag">{school.name.toUpperCase()} WORKSPACE</div>
-      <nav>{nav.filter(item=>item.label!=="Audit Log"||["OWNER","ADMIN","ACCOUNTANT"].includes(school.role)).map(({label,icon:Icon,disabled})=><button key={label} disabled={disabled} title={disabled?"Coming in a later release":label} className={active===label?"nav-item selected":"nav-item"} onClick={()=>{setActive(label);setMenu(false);clearMessages();}}><Icon size={18}/><span>{label}</span>{disabled&&<small className="soon">Soon</small>}</button>)}</nav>
+      <nav>{nav.filter(item=>item.label!=="Audit Log"||["OWNER","ADMIN","ACCOUNTANT"].includes(school.role)).map(({label,icon:Icon})=><button key={label} className={active===label?"nav-item selected":"nav-item"} onClick={()=>{setActive(label);setMenu(false);clearMessages();}}><Icon size={18}/><span>{label}</span></button>)}</nav>
       <div className="side-foot"><ShieldCheck size={17}/><span>{school.role.toLowerCase()} access</span></div>
     </aside>
     <main className="main">
@@ -498,7 +498,7 @@ export default function App() {
                 ["payroll_net_payable","Net salaries payable"],["payroll_paye","PAYE payable"],
                 ["payroll_nssf","NSSF payable"],["payroll_shif","SHIF payable"],
                 ["payroll_housing","Housing levy payable"],
-              ].map(([key,label])=><label key={key}>{label}<select required value={form[key]||String(payrollSettings?.[({payroll_net_payable:"net_payable_account",payroll_paye:"paye_payable_account",payroll_nssf:"nssf_payable_account",payroll_shif:"shif_payable_account",payroll_housing:"housing_levy_payable_account"})[key]]||"")} onChange={e=>setField(key,e.target.value)}><option value="">Select liability account</option>{accounts.filter(x=>x.category==="LIABILITY"&&x.is_active).map(x=><option key={x.id} value={x.id}>{x.code} — {x.name}</option>)}</select></label>)}
+              ].map(([key,label])=><label key={key}>{label}<select required value={form[key]||String(payrollSettings?.[({payroll_net_payable:"net_payable_account",payroll_paye:"paye_payable_account",payroll_nssf:"nssf_payable_account",payroll_shif:"shif_payable_account",payroll_housing:"housing_levy_payable_account"} as Record<string,string>)[key]]||"")} onChange={e=>setField(key,e.target.value)}><option value="">Select liability account</option>{accounts.filter(x=>x.category==="LIABILITY"&&x.is_active).map(x=><option key={x.id} value={x.id}>{x.code} — {x.name}</option>)}</select></label>)}
             </div>
             <button className="primary" disabled={busy}>Save payroll mappings</button>
           </form>
