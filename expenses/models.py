@@ -51,6 +51,18 @@ class ExpenseCategory(models.Model):
         return self.name
 
 
+class ExpenseQuerySet(models.QuerySet):
+    def update(self, **kwargs):
+        if self.filter(status="POSTED").exists():
+            raise ValidationError("Posted expenses cannot be changed through bulk updates.")
+        return super().update(**kwargs)
+
+    def delete(self):
+        if self.filter(status="POSTED").exists():
+            raise ValidationError("Posted expenses cannot be deleted.")
+        return super().delete()
+
+
 class Expense(models.Model):
     class Status(models.TextChoices):
         DRAFT = "DRAFT", "Draft"
@@ -70,6 +82,8 @@ class Expense(models.Model):
     journal_entry = models.OneToOneField(JournalEntry, null=True, blank=True, on_delete=models.PROTECT, related_name="source_expense")
     created_at = models.DateTimeField(auto_now_add=True)
 
+    objects = ExpenseQuerySet.as_manager()
+
     class Meta:
         ordering = ["-expense_date", "-id"]
         constraints = [
@@ -88,6 +102,16 @@ class Expense(models.Model):
             errors["period"] = "Financial period must belong to this school."
         if errors:
             raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        if self.pk and Expense.objects.filter(pk=self.pk, status=self.Status.POSTED).exists():
+            raise ValidationError("Posted expenses are immutable.")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        if self.status == self.Status.POSTED:
+            raise ValidationError("Posted expenses cannot be deleted.")
+        return super().delete(*args, **kwargs)
 
     def __str__(self):
         return self.expense_number
