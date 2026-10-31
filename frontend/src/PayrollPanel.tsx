@@ -14,7 +14,7 @@ export default function PayrollPanel({schoolId,currency,periods,accounts,canWrit
  const [settings,setSettings]=useState<Row|null>(null);
  const [rules,setRules]=useState<Row[]>([]);
  const [bands,setBands]=useState<Row[]>([]);
- const [employee,setEmployee]=useState({employee_number:"",first_name:"",last_name:"",job_title:"",basic_salary:"",regular_cash_allowances:"0.00",monthly_other_deductions:"0.00",hire_date:today(),is_resident:true});
+ const [employee,setEmployee]=useState({employee_number:"",first_name:"",last_name:"",job_title:"",basic_salary:"",regular_cash_allowances:"0.00",monthly_other_deductions:"0.00",monthly_insurance_premiums:"0.00",monthly_mortgage_interest:"0.00",monthly_post_retirement_medical:"0.00",monthly_additional_pension:"0.00",tax_claims_reference:"",tax_claims_verified:false,tax_exemption_certificate_ref:"",tax_exemption_valid_from:"",tax_exemption_valid_to:"",tax_exemption_verified:false,hire_date:today(),is_resident:true});
  const [period,setPeriod]=useState("");
  const [month,setMonth]=useState(monthStart());
  const [payDate,setPayDate]=useState(today());
@@ -34,7 +34,7 @@ export default function PayrollPanel({schoolId,currency,periods,accounts,canWrit
  useEffect(()=>{void refresh().catch(e=>setError(e.message));},[schoolId]);
  async function createEmployee(e:React.FormEvent){
   e.preventDefault();setBusy(true);setError("");
-  try{await api(`${base}/employees/`,{method:"POST",body:JSON.stringify(employee)});setEmployee({employee_number:"",first_name:"",last_name:"",job_title:"",basic_salary:"",regular_cash_allowances:"0.00",monthly_other_deductions:"0.00",hire_date:today(),is_resident:true});await refresh();onChanged?.();}
+  try{await api(`${base}/employees/`,{method:"POST",body:JSON.stringify(employee)});setEmployee({employee_number:"",first_name:"",last_name:"",job_title:"",basic_salary:"",regular_cash_allowances:"0.00",monthly_other_deductions:"0.00",monthly_insurance_premiums:"0.00",monthly_mortgage_interest:"0.00",monthly_post_retirement_medical:"0.00",monthly_additional_pension:"0.00",tax_claims_reference:"",tax_claims_verified:false,tax_exemption_certificate_ref:"",tax_exemption_valid_from:"",tax_exemption_valid_to:"",tax_exemption_verified:false,hire_date:today(),is_resident:true});await refresh();onChanged?.();}
   catch(err){setError(err instanceof Error?err.message:"Could not add employee.");}finally{setBusy(false);}
  }
  async function saveSettings(e:React.FormEvent){
@@ -62,6 +62,19 @@ export default function PayrollPanel({schoolId,currency,periods,accounts,canWrit
     <div className="form-grid"><label>First name<input required value={employee.first_name} onChange={e=>setEmployee(v=>({...v,first_name:e.target.value}))}/></label><label>Last name<input required value={employee.last_name} onChange={e=>setEmployee(v=>({...v,last_name:e.target.value}))}/></label></div>
     <label>Job title<input value={employee.job_title} onChange={e=>setEmployee(v=>({...v,job_title:e.target.value}))}/></label>
     <div className="form-grid"><label>Basic monthly salary<input type="number" min="0" step="0.01" required value={employee.basic_salary} onChange={e=>setEmployee(v=>({...v,basic_salary:e.target.value}))}/></label><label>Regular monthly cash allowances<input type="number" min="0" step="0.01" value={employee.regular_cash_allowances} onChange={e=>setEmployee(v=>({...v,regular_cash_allowances:e.target.value}))}/></label><label>Other monthly deductions<input type="number" min="0" step="0.01" value={employee.monthly_other_deductions} onChange={e=>setEmployee(v=>({...v,monthly_other_deductions:e.target.value}))}/></label><label>Hire date<input type="date" required value={employee.hire_date} onChange={e=>setEmployee(v=>({...v,hire_date:e.target.value}))}/></label></div>
+    <details className="entry-panel"><summary>Employee tax claims and exemptions</summary><p className="muted">Enter amounts supported by current documents. Claims are excluded until verified by a school owner or administrator.</p>
+     <div className="form-grid">
+      <label>Monthly insurance premiums<input type="number" min="0" step="0.01" value={employee.monthly_insurance_premiums} onChange={e=>setEmployee(v=>({...v,monthly_insurance_premiums:e.target.value}))}/></label>
+      <label>Monthly mortgage interest<input type="number" min="0" step="0.01" value={employee.monthly_mortgage_interest} onChange={e=>setEmployee(v=>({...v,monthly_mortgage_interest:e.target.value}))}/></label>
+      <label>Post-retirement medical fund<input type="number" min="0" step="0.01" value={employee.monthly_post_retirement_medical} onChange={e=>setEmployee(v=>({...v,monthly_post_retirement_medical:e.target.value}))}/></label>
+      <label>Additional registered pension<input type="number" min="0" step="0.01" value={employee.monthly_additional_pension} onChange={e=>setEmployee(v=>({...v,monthly_additional_pension:e.target.value}))}/></label>
+     </div>
+     <label>Supporting document reference<input value={employee.tax_claims_reference} onChange={e=>setEmployee(v=>({...v,tax_claims_reference:e.target.value}))}/></label>
+     {canAdmin&&<label className="check-label"><input type="checkbox" checked={employee.tax_claims_verified} onChange={e=>setEmployee(v=>({...v,tax_claims_verified:e.target.checked}))}/> I have checked the supporting documents for these claims</label>}
+     <label>Tax exemption certificate reference<input value={employee.tax_exemption_certificate_ref} onChange={e=>setEmployee(v=>({...v,tax_exemption_certificate_ref:e.target.value}))}/></label>
+     <div className="form-grid"><label>Certificate valid from<input type="date" value={employee.tax_exemption_valid_from} onChange={e=>setEmployee(v=>({...v,tax_exemption_valid_from:e.target.value}))}/></label><label>Certificate valid to<input type="date" value={employee.tax_exemption_valid_to} onChange={e=>setEmployee(v=>({...v,tax_exemption_valid_to:e.target.value}))}/></label></div>
+     {canAdmin&&<label className="check-label"><input type="checkbox" checked={employee.tax_exemption_verified} onChange={e=>setEmployee(v=>({...v,tax_exemption_verified:e.target.checked}))}/> I have authenticated this exemption certificate</label>}
+    </details>
     <label className="check-label"><input type="checkbox" checked={employee.is_resident} onChange={e=>setEmployee(v=>({...v,is_resident:e.target.checked}))}/> Resident individual (eligible for personal relief)</label>
     <button className="primary" disabled={busy}>{busy?"Saving…":"Add employee"}</button>
    </form>
