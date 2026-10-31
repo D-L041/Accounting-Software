@@ -9,14 +9,14 @@ A green frontend build or successful deployment alone is not sufficient for fina
 - [x] Posted journal and line mutation paths guarded.
 - [x] Trial balance service added for posted entries.
 - [x] Production settings reject missing secrets and non-PostgreSQL databases.
-- [ ] CI test run observed and passed.
-- [ ] Authentication, role permissions and school-level tenant isolation implemented and tested.
-- [ ] Student, fees, invoices, payment allocation and receipt workflows implemented.
-- [ ] Expense, supplier, payroll, budgeting and procurement workflows implemented.
-- [ ] Bank reconciliation and complete financial reports implemented.
+- [x] Latest backend and frontend CI run observed and passed for the verified baseline (re-run required for subsequent commits).
+- [x] Session authentication, role permissions and school-level tenant isolation implemented and tested.
+- [x] Student, fees, invoices, payment allocation and receipt workflows implemented in API and frontend.
+- [x] Supplier directory, expense categories and ledger-posted expense workflow implemented.\n- [ ] Payroll, budgeting, supplier bills/payables and procurement workflows implemented.
+- [x] Trial balance API and frontend report implemented.\n- [ ] Bank reconciliation, balance sheet and full income/expenditure reporting implemented.
 - [ ] Audit event capture and financial approval workflows implemented.
 - [ ] Offline data queue, sync and conflict resolution implemented and tested.
-- [ ] Security review and tenant-isolation tests passed.
+- [ ] Independent security review and expanded tenant-isolation tests passed.
 - [ ] Backup schedule and a real restore drill verified.
 - [ ] Production API, PostgreSQL and frontend provisioned.
 - [ ] Custom domain connected and HTTPS verified.
