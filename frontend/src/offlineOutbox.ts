@@ -17,6 +17,7 @@ type StoredDraft = {
   createdAt: string;
   iv: ArrayBuffer;
   ciphertext: ArrayBuffer;
+  resourceType?: "expense" | "purchase_order";
   state: "queued" | "needs_attention";
   lastError?: string;
 };
@@ -71,6 +72,23 @@ async function encryptionKey(db: IDBDatabase, scope: string): Promise<CryptoKey>
 }
 
 export async function queueExpenseDraft(payload: OfflineExpensePayload, userId: number, schoolId: number) {
+  return queueDraft("expense", payload, userId, schoolId);
+}
+
+export type OfflinePurchaseOrderPayload = {
+  supplier: number;
+  period: number;
+  order_date: string;
+  expected_date?: string | null;
+  description: string;
+  lines: { description: string; quantity: string; unit_cost: string }[];
+};
+
+export async function queuePurchaseOrderDraft(payload: OfflinePurchaseOrderPayload, userId: number, schoolId: number) {
+  return queueDraft("purchase_order", payload, userId, schoolId);
+}
+
+async function queueDraft(resourceType: "expense" | "purchase_order", payload: OfflineExpensePayload | OfflinePurchaseOrderPayload, userId: number, schoolId: number) {
   const db = await openDatabase();
   try {
     const scope = scopeFor(userId, schoolId);
@@ -99,14 +117,14 @@ export async function listExpenseDrafts(userId: number, schoolId: number) {
   try {
     const tx = db.transaction("drafts", "readonly");
     const rows = await requestResult(tx.objectStore("drafts").index("scope").getAll(scopeFor(userId, schoolId))) as StoredDraft[];
-    return rows.sort((a, b) => a.createdAt.localeCompare(b.createdAt)).map(({ idempotencyKey, createdAt, state, lastError }) => ({ idempotencyKey, createdAt, state, lastError }));
+    return rows.sort((a, b) => a.createdAt.localeCompare(b.createdAt)).map(({ idempotencyKey, createdAt, resourceType, state, lastError }) => ({ idempotencyKey, createdAt, resourceType: resourceType || "expense", state, lastError }));
   } finally { db.close(); }
 }
 
 export async function syncExpenseDrafts(
   userId: number,
   schoolId: number,
-  send: (idempotencyKey: string, payload: OfflineExpensePayload) => Promise<{ status: string }>,
+  send: (idempotencyKey: string, payload: OfflineExpensePayload | OfflinePurchaseOrderPayload, resourceType: "expense" | "purchase_order") => Promise<{ status: string }>,
 ) {
   const db = await openDatabase();
   let synced = 0;
