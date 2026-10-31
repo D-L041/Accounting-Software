@@ -32,7 +32,7 @@ class StkPushAttempt(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
-        indexes = [models.Index(fields=["school", "status"]), models.Index(fields=["merchant_request_id"])]
+        indexes = [models.Index(fields=["school", "status"], name="daraja_stk_school_status"), models.Index(fields=["merchant_request_id"], name="daraja_stk_merchant_idx")]
 
 
 class C2BNotification(models.Model):
