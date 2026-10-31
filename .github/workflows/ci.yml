@@ -29,6 +29,11 @@ jobs:
           SECRET_KEY: ci-only-not-a-secret
           DEBUG: "True"
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/ststephen
+      - run: python manage.py makemigrations --check --dry-run
+        env:
+          SECRET_KEY: ci-only-not-a-secret
+          DEBUG: "True"
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/ststephen
       - run: python manage.py migrate --noinput
         env:
           SECRET_KEY: ci-only-not-a-secret
