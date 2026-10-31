@@ -7,8 +7,8 @@ from rest_framework.response import Response
 
 from accounts.models import School, SchoolMembership
 from auditlog.services import record_event
-from .models import Expense, ExpenseBudget, ExpenseCategory, Supplier, SupplierBill
-from .serializers import ExpenseBudgetSerializer, ExpenseCategorySerializer, ExpenseSerializer, SupplierSerializer, SupplierBillSerializer, RecordSupplierBillPaymentSerializer
+from .models import Expense, ExpenseBudget, ExpenseCategory, Supplier, SupplierBill, PurchaseOrder, PurchaseOrderApproval, ProcurementApprovalRule
+from .serializers import ExpenseBudgetSerializer, ExpenseCategorySerializer, ExpenseSerializer, SupplierSerializer, SupplierBillSerializer, RecordSupplierBillPaymentSerializer, PurchaseOrderSerializer, ProcurementApprovalRuleSerializer
 from .services import post_expense
 from .payables import approve_supplier_bill, post_supplier_bill, record_supplier_bill_payment, submit_supplier_bill
 
@@ -198,3 +198,114 @@ class ExpenseBudgetViewSet(SchoolExpensesViewSet):
             action="EXPENSE_BUDGET_UPDATED", entity_type="ExpenseBudget",
             entity_id=budget.pk, summary=f"Updated budget for {budget.category.name} in {budget.period.name}",
         )
+
+
+class ProcurementApprovalRuleViewSet(SchoolExpensesViewSet):
+    serializer_class = ProcurementApprovalRuleSerializer
+    http_method_names = ["get", "post", "patch", "delete", "head", "options"]
+
+    def get_queryset(self):
+        return ProcurementApprovalRule.objects.filter(school=self.get_school())
+
+    def check_admin(self):
+        member = SchoolMembership.objects.filter(school=self.get_school(), user=self.request.user, is_active=True).first()
+        if not member or member.role not in {SchoolMembership.Role.OWNER, SchoolMembership.Role.ADMIN}:
+            raise PermissionDenied("Only the school owner or administrator can configure procurement approval rules.")
+
+    def perform_create(self, serializer):
+        self.check_admin()
+        serializer.save(school=self.get_school())
+
+    def perform_update(self, serializer):
+        self.check_admin()
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        self.check_admin()
+        instance.delete()
+
+
+class PurchaseOrderViewSet(SchoolExpensesViewSet):
+    serializer_class = PurchaseOrderSerializer
+    http_method_names = ["get", "post", "patch", "head", "options"]
+
+    def get_queryset(self):
+        return PurchaseOrder.objects.filter(school=self.get_school()).select_related(
+            "supplier", "period", "created_by"
+        ).prefetch_related("lines", "approvals__approved_by")
+
+    def perform_create(self, serializer):
+        self.check_write_role()
+        order = serializer.save()
+        record_event(school=self.get_school(), actor=self.request.user,
+                     action="PURCHASE_ORDER_CREATED", entity_type="PurchaseOrder",
+                     entity_id=order.pk, summary=f"Created draft purchase order {order.order_number}")
+
+    def perform_update(self, serializer):
+        self.check_write_role()
+        if serializer.instance.status != PurchaseOrder.Status.DRAFT:
+            raise PermissionDenied("Only draft purchase orders can be edited.")
+        order = serializer.save()
+        record_event(school=self.get_school(), actor=self.request.user,
+                     action="PURCHASE_ORDER_UPDATED", entity_type="PurchaseOrder",
+                     entity_id=order.pk, summary=f"Updated draft purchase order {order.order_number}")
+
+    @action(detail=True, methods=["post"])
+    def submit(self, request, school_pk=None, pk=None):
+        self.check_write_role()
+        from django.db import transaction
+        from django.utils import timezone
+        order = self.get_object()
+        if order.status != PurchaseOrder.Status.DRAFT or not order.lines.exists():
+            raise ValidationError("Only a non-empty draft purchase order can be submitted.")
+        with transaction.atomic():
+            rules = list(ProcurementApprovalRule.objects.filter(
+                school=self.get_school(), is_active=True, min_amount__lte=order.total_amount
+            ).order_by("step_number", "-min_amount"))
+            steps = {}
+            for rule in rules:
+                steps.setdefault(rule.step_number, rule.approver_role)
+            if not steps:
+                steps = {1: "OWNER"}
+            for step, role in sorted(steps.items()):
+                PurchaseOrderApproval.objects.create(
+                    purchase_order=order, step_number=step, approver_role=role
+                )
+            order.status = PurchaseOrder.Status.SUBMITTED
+            order.submitted_at = timezone.now()
+            order.save(update_fields=["status", "submitted_at"])
+            record_event(school=self.get_school(), actor=request.user,
+                         action="PURCHASE_ORDER_SUBMITTED", entity_type="PurchaseOrder",
+                         entity_id=order.pk, summary=f"Submitted {order.order_number} for {len(steps)} approval step(s)")
+        return Response(self.get_serializer(order).data)
+
+    @action(detail=True, methods=["post"])
+    def approve(self, request, school_pk=None, pk=None):
+        self.check_write_role()
+        from django.db import transaction
+        from django.utils import timezone
+        order = self.get_object()
+        if order.status != PurchaseOrder.Status.SUBMITTED:
+            raise ValidationError("Only submitted purchase orders can be approved.")
+        if order.created_by_id == request.user.id:
+            raise PermissionDenied("The person who created a purchase order cannot approve it.")
+        with transaction.atomic():
+            approval = order.approvals.filter(approved_at__isnull=True).order_by("step_number").first()
+            if not approval:
+                raise ValidationError("No outstanding approval step exists.")
+            member = SchoolMembership.objects.filter(
+                school=self.get_school(), user=request.user, is_active=True
+            ).first()
+            if not member or member.role != approval.approver_role:
+                raise PermissionDenied(f"This approval step requires the {approval.approver_role} role.")
+            approval.approved_by = request.user
+            approval.approved_at = timezone.now()
+            approval.save(update_fields=["approved_by", "approved_at"])
+            if not order.approvals.filter(approved_at__isnull=True).exists():
+                order.status = PurchaseOrder.Status.APPROVED
+                order.save(update_fields=["status"])
+            record_event(school=self.get_school(), actor=request.user,
+                         action="PURCHASE_ORDER_STEP_APPROVED", entity_type="PurchaseOrder",
+                         entity_id=order.pk, summary=f"Approved step {approval.step_number} of {order.order_number}")
+        order.refresh_from_db()
+        return Response(self.get_serializer(order).data)
