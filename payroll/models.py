@@ -16,6 +16,7 @@ class Employee(models.Model):
     last_name = models.CharField(max_length=80)
     job_title = models.CharField(max_length=120, blank=True)
     basic_salary = models.DecimalField(max_digits=14, decimal_places=2)
+    is_resident = models.BooleanField(default=True)
     hire_date = models.DateField()
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -151,10 +152,16 @@ class PayrollRun(models.Model):
         if self.payroll_month and self.payroll_month.day != 1:
             errors["payroll_month"] = "Payroll month must use the first day of the month."
         if self.period_id and self.payroll_month:
-            if not (self.period.starts_on <= self.payroll_month <= self.period.ends_on):
+            payroll_month = self._meta.get_field("payroll_month").to_python(self.payroll_month)
+            period_start = FinancialPeriod._meta.get_field("starts_on").to_python(self.period.starts_on)
+            period_end = FinancialPeriod._meta.get_field("ends_on").to_python(self.period.ends_on)
+            if not (period_start <= payroll_month <= period_end):
                 errors["payroll_month"] = "Payroll month must fall within the selected financial period."
         if self.period_id and self.pay_date:
-            if not (self.period.starts_on <= self.pay_date <= self.period.ends_on):
+            pay_date = self._meta.get_field("pay_date").to_python(self.pay_date)
+            period_start = FinancialPeriod._meta.get_field("starts_on").to_python(self.period.starts_on)
+            period_end = FinancialPeriod._meta.get_field("ends_on").to_python(self.period.ends_on)
+            if not (period_start <= pay_date <= period_end):
                 errors["pay_date"] = "Pay date must fall within the selected financial period."
         if errors:
             raise ValidationError(errors)
