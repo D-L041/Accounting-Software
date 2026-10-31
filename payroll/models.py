@@ -74,6 +74,7 @@ class PayrollRule(models.Model):
         constraints = [
             models.CheckConstraint(condition=Q(effective_to__isnull=True) | Q(effective_to__gte=models.F("effective_from")), name="payroll_rule_effective_range"),
             models.CheckConstraint(condition=Q(employee_rate__gte=0) & Q(employer_rate__gte=0), name="payroll_rule_rates_nonnegative"),
+            models.CheckConstraint(condition=Q(fixed_employer__gte=0), name="payroll_fixed_employer_nonnegative"),
             models.UniqueConstraint(fields=["school", "code", "effective_from"], condition=Q(school__isnull=False), name="unique_school_payroll_rule_effective"),
             models.UniqueConstraint(fields=["code", "effective_from"], condition=Q(school__isnull=True), name="unique_global_payroll_rule_effective"),
         ]
