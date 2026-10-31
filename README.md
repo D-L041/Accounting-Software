@@ -63,6 +63,7 @@ Purchase orders and configurable supplier approval limits are not yet implemente
 - `docs/OFFLINE_SYNC_DESIGN.md` — safe offline draft-sync boundary.
 - `docs/BACKUP_RESTORE_RUNBOOK.md` — PostgreSQL backup and restore procedure.
 - `docs/ADMIN_HANDOVER.md` — production setup and school administrator handover checklist.
+- `docs/ST_STEPHEN_ACCEPTANCE_TEST_PLAN.md` — school acceptance test scenarios and sign-off sheet.
 
 ## Local development
 
