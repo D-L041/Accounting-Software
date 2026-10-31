@@ -33,7 +33,9 @@ export async function api<T = any>(path: string, options: ApiOptions = {}): Prom
 
 export async function login(username: string, password: string) {
   await getCsrfToken();
-  return api<{user: User}>("/api/auth/login/", { method: "POST", body: JSON.stringify({ username, password }) });
+  const response = await api<{user: User}>("/api/auth/login/", { method: "POST", body: JSON.stringify({ username, password }) });
+  await getCsrfToken(); // Django rotates the CSRF secret on successful login.
+  return response;
 }
 export async function logout() {
   await api("/api/auth/logout/", { method: "POST", body: JSON.stringify({}) });
