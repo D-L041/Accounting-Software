@@ -62,7 +62,14 @@ class EmployeeViewSet(SchoolPayrollViewSet, viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         self.check_write_role()
-        if serializer.validated_data.get("tax_claims_verified") or serializer.validated_data.get("tax_exemption_verified"):
+        sensitive_fields = {
+            "monthly_insurance_premiums", "monthly_mortgage_interest",
+            "monthly_post_retirement_medical", "monthly_additional_pension",
+            "tax_claims_reference", "tax_claims_verified",
+            "tax_exemption_certificate_ref", "tax_exemption_valid_from",
+            "tax_exemption_valid_to", "tax_exemption_verified",
+        }
+        if any(field in serializer.validated_data for field in sensitive_fields):
             self.check_admin_role()
         employee = serializer.save(school=self.get_school())
         record_event(
@@ -74,7 +81,14 @@ class EmployeeViewSet(SchoolPayrollViewSet, viewsets.ModelViewSet):
     def perform_update(self, serializer):
         self.check_write_role()
         changes = serializer.validated_data
-        if changes.get("tax_claims_verified") is True or changes.get("tax_exemption_verified") is True:
+        sensitive_fields = {
+            "monthly_insurance_premiums", "monthly_mortgage_interest",
+            "monthly_post_retirement_medical", "monthly_additional_pension",
+            "tax_claims_reference", "tax_claims_verified",
+            "tax_exemption_certificate_ref", "tax_exemption_valid_from",
+            "tax_exemption_valid_to", "tax_exemption_verified",
+        }
+        if any(field in changes for field in sensitive_fields):
             self.check_admin_role()
         claim_fields = {
             "monthly_insurance_premiums", "monthly_mortgage_interest",
