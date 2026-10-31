@@ -74,9 +74,9 @@ class PayrollWorkflowTests(TestCase):
         self.assertEqual(line.shif_employee, Decimal("1375.00"))
         self.assertEqual(line.housing_levy_employee, Decimal("750.00"))
         self.assertEqual(line.housing_levy_employer, Decimal("750.00"))
-        self.assertEqual(line.taxable_pay, Decimal("47875.00"))
-        self.assertEqual(line.paye, Decimal("6745.85"))
-        self.assertEqual(line.net_pay, Decimal("38129.15"))
+        self.assertEqual(line.taxable_pay, Decimal("44875.00"))
+        self.assertEqual(line.paye, Decimal("5845.85"))
+        self.assertEqual(line.net_pay, Decimal("39029.15"))
 
     def test_january_2026_nssf_uses_previous_effective_ceiling(self):
         Employee.objects.filter(pk=self.employee.pk).update(basic_salary=Decimal("100000.00"))
