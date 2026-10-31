@@ -20,13 +20,13 @@ A green frontend build or successful deployment alone is not sufficient for fina
 - [x] Posted cashbook movement report implemented (period movement only; no opening balance).
 - [x] API Docker image build and database health endpoint verified in CI.
 - [x] Bank statement API, ledger matching, arithmetic validation, reconciliation lock and audit trail implemented and tested.
-- [ ] Bank reconciliation frontend, bank CSV import mapping and cash flow reporting implemented.
+- [x] Bank reconciliation frontend screen connected to existing statement/matching/reconciliation APIs; CSV import mapping and cash flow reporting remain outstanding.
 - [x] Immutable audit events for core financial posting actions and a school-scoped audit log.
 - [ ] Complete CRUD audit coverage, configurable approval limits and procurement approval workflows.
 - [x] Downloadable PDF receipts with school-level access checks.
 - [x] Credit note and payment refund API workflows implemented and tested, including invoice balance adjustments and ledger reversals.
-- [ ] Safaricom Daraja callback integration, idempotent callback handling and production M-Pesa reconciliation verified.
-- [ ] Offline data queue, sync and conflict resolution implemented and tested.
+- [ ] Daraja STK Push initiation, persisted attempts, STK callback capture, STK Query verification and duplicate-safe posting scaffold implemented; sandbox end-to-end tests, C2B transaction verification/automatic posting, callback hardening and production reconciliation remain outstanding.
+- [ ] Offline data queue, sync and conflict resolution implemented and tested. The current frontend explicitly disables financial transactions offline.
 - [x] Additional tenant-isolation tests added for bank statements, supplier bills and payroll employee lists.
 - [ ] Independent security review and complete tenant-isolation/security test programme passed.
 - [ ] Backup schedule and a real restore drill verified.
