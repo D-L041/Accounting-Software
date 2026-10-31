@@ -1,4 +1,228 @@
-import { useState } from 'react';
-import { LayoutDashboard, GraduationCap, ReceiptText, Wallet, BookOpen, Landmark, Users, Settings, Menu, Bell, Search, ArrowUpRight, ArrowDownRight, ShieldCheck } from 'lucide-react';
-const nav = [{label:'Overview',icon:LayoutDashboard},{label:'Students & Classes',icon:GraduationCap},{label:'Fees & Invoices',icon:ReceiptText},{label:'Payments & Receipts',icon:Wallet},{label:'Expenses & Suppliers',icon:ArrowDownRight},{label:'General Ledger',icon:BookOpen},{label:'Cashbook & Banks',icon:Landmark},{label:'Staff & Payroll',icon:Users},{label:'Reports',icon:ArrowUpRight},{label:'Settings',icon:Settings}];
-export default function App(){ const [active,setActive]=useState('Overview'); const [menu,setMenu]=useState(false); return <div className="shell"><aside className={menu?'sidebar open':'sidebar'}><div className="brand"><div className="crest"><GraduationCap size={24}/></div><div><strong>PRECIOUS</strong><small>SCHOOLBOOKS</small></div></div><div className="school-tag">ST STEPHEN SCHOOL WORKSPACE</div><nav>{nav.map(({label,icon:Icon})=><button key={label} className={active===label?'nav-item selected':'nav-item'} onClick={()=>{setActive(label);setMenu(false)}}><Icon size={18}/><span>{label}</span></button>)}</nav><div className="side-foot"><ShieldCheck size={17}/><span>Secure finance workspace</span></div></aside><main className="main"><header><button className="icon-btn mobile" onClick={()=>setMenu(!menu)}><Menu/></button><div className="crumb">Precious SchoolBooks <span>/</span> {active}</div><div className="head-actions"><button className="icon-btn"><Search/></button><button className="icon-btn"><Bell/></button><div className="avatar">SA</div></div></header><section className="content"><div className="welcome"><div><div className="eyebrow">FINANCIAL OVERVIEW</div><h1>{active}</h1><p>St Stephen School · Financial year 2026</p></div><div className="period">Reporting period <strong>Current financial year</strong></div></div><div className="notice"><ShieldCheck size={18}/><div><strong>System foundation preview</strong><span>Live financial figures will appear after secure setup and connection to the accounting database. No sample balances are presented as school records.</span></div></div><div className="empty-state"><div className="empty-icon"><BookOpen size={26}/></div><h2>{active==='Overview'?'Your school finance workspace is being prepared':'Module setup in progress'}</h2><p>The interface foundation is in place. Financial operations will be enabled as the API, permissions, audit controls and verified accounting workflows are completed.</p></div><footer>PRECIOUS SCHOOLBOOKS <span>·</span> ST STEPHEN SCHOOL</footer></section></main></div> }
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  LayoutDashboard, GraduationCap, ReceiptText, Wallet, BookOpen, Landmark,
+  Users, Settings, Menu, Bell, Search, ArrowUpRight, ArrowDownRight,
+  ShieldCheck, LogOut, Plus, RefreshCw, AlertCircle, CheckCircle2,
+} from "lucide-react";
+import { api, login, logout, School, User } from "./api";
+
+type Row = Record<string, any>;
+const nav = [
+  { label: "Overview", icon: LayoutDashboard },
+  { label: "Students & Classes", icon: GraduationCap },
+  { label: "Fees & Invoices", icon: ReceiptText },
+  { label: "Payments & Receipts", icon: Wallet },
+  { label: "Expenses & Suppliers", icon: ArrowDownRight },
+  { label: "General Ledger", icon: BookOpen },
+  { label: "Cashbook & Banks", icon: Landmark, disabled: true },
+  { label: "Staff & Payroll", icon: Users, disabled: true },
+  { label: "Reports", icon: ArrowUpRight, disabled: true },
+  { label: "Settings", icon: Settings },
+];
+const today = new Date().toISOString().slice(0, 10);
+const money = (value: unknown, currency = "KES") => new Intl.NumberFormat("en-KE", { style: "currency", currency, maximumFractionDigits: 2 }).format(Number(value || 0));
+const errorText = (error: unknown) => error instanceof Error ? error.message : "Something went wrong. Please try again.";
+
+function LoginScreen({ onLogin }: { onLogin: (username: string, password: string) => Promise<void> }) {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function submit(event: FormEvent) {
+    event.preventDefault(); setBusy(true); setError("");
+    try { await onLogin(username, password); } catch (e) { setError(errorText(e)); } finally { setBusy(false); }
+  }
+  return <div className="auth-screen"><form className="auth-card" onSubmit={submit}>
+    <div className="brand auth-brand"><div className="crest"><GraduationCap size={25}/></div><div><strong>PRECIOUS</strong><small>SCHOOLBOOKS</small></div></div>
+    <div className="eyebrow">SECURE SCHOOL FINANCE</div><h1>Welcome back</h1><p>Sign in to your school accounting workspace.</p>
+    {error && <div className="error-banner"><AlertCircle size={16}/>{error}</div>}
+    <label>Username<input autoComplete="username" value={username} onChange={e=>setUsername(e.target.value)} required /></label>
+    <label>Password<input type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} required /></label>
+    <button className="primary full" disabled={busy}>{busy ? "Signing in…" : "Sign in securely"}</button>
+    <small className="muted">Access is managed by your school administrator.</small>
+  </form></div>;
+}
+
+function DataTable({ rows, columns, currency, empty }: { rows: Row[]; columns: {key:string;label:string;format?:(v:any,row:Row)=>string}[]; currency: string; empty: string }) {
+  if (!rows.length) return <div className="table-empty">{empty}</div>;
+  return <div className="table-wrap"><table><thead><tr>{columns.map(c=><th key={c.key}>{c.label}</th>)}</tr></thead><tbody>
+    {rows.map((row,i)=><tr key={row.id ?? i}>{columns.map(c=><td key={c.key}>{c.format ? c.format(row[c.key],row) : String(row[c.key] ?? "—")}</td>)}</tr>)}
+  </tbody></table></div>;
+}
+
+export default function App() {
+  const [user,setUser] = useState<User|null>(null);
+  const [school,setSchool] = useState<School|null>(null);
+  const [active,setActive] = useState("Overview");
+  const [menu,setMenu] = useState(false);
+  const [loading,setLoading] = useState(true);
+  const [busy,setBusy] = useState(false);
+  const [error,setError] = useState("");
+  const [success,setSuccess] = useState("");
+  const [rows,setRows] = useState<Row[]>([]);
+  const [students,setStudents] = useState<Row[]>([]);
+  const [years,setYears] = useState<Row[]>([]);
+  const [periods,setPeriods] = useState<Row[]>([]);
+  const [feeItems,setFeeItems] = useState<Row[]>([]);
+  const [accounts,setAccounts] = useState<Row[]>([]);
+  const [categories,setCategories] = useState<Row[]>([]);
+  const [suppliers,setSuppliers] = useState<Row[]>([]);
+  const [invoices,setInvoices] = useState<Row[]>([]);
+  const [form,setForm] = useState<Record<string,string>>({});
+  const [newSchool,setNewSchool] = useState({name:"",code:"",address:"",phone:"",email:""});
+
+  const schoolBase = school ? `/api/schools/${school.id}` : "";
+  const setField = (key:string,value:string) => setForm(old=>({...old,[key]:value}));
+  const clearMessages = () => { setError(""); setSuccess(""); };
+
+  const refreshSession = useCallback(async () => {
+    try {
+      const response = await api<{user:User}>("/api/auth/me/");
+      setUser(response.user);
+      setSchool(current => current && response.user.schools.some(s=>s.id===current.id) ? current : response.user.schools[0] || null);
+    } catch { setUser(null); setSchool(null); }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { void refreshSession(); }, [refreshSession]);
+
+  const loadData = useCallback(async () => {
+    if (!school) return;
+    setLoading(true); setError("");
+    try {
+      const [studentRows, yearRows, periodRows, accountRows, feeRows, invoiceRows, paymentRows, expenseRows, categoryRows, supplierRows] = await Promise.all([
+        api<Row[]>(`${schoolBase}/students/`),
+        api<Row[]>(`${schoolBase}/academic-years/`),
+        api<Row[]>(`${schoolBase}/ledger/periods/`),
+        api<Row[]>(`${schoolBase}/ledger/accounts/`),
+        api<Row[]>(`${schoolBase}/billing/fee-items/`),
+        api<Row[]>(`${schoolBase}/billing/invoices/`),
+        api<Row[]>(`${schoolBase}/billing/payments/`),
+        api<Row[]>(`${schoolBase}/expenses/`),
+        api<Row[]>(`${schoolBase}/expenses/categories/`),
+        api<Row[]>(`${schoolBase}/expenses/suppliers/`),
+      ]);
+      setStudents(studentRows); setYears(yearRows); setPeriods(periodRows); setAccounts(accountRows);
+      setFeeItems(feeRows); setInvoices(invoiceRows); setCategories(categoryRows); setSuppliers(supplierRows);
+      if (active==="Overview") setRows([...invoiceRows.slice(0,5).map(x=>({...x,record_type:"Invoice"})), ...paymentRows.slice(0,5).map(x=>({...x,record_type:"Receipt"})), ...expenseRows.slice(0,5).map(x=>({...x,record_type:"Expense"}))].sort((a,b)=>String(b.created_at||b.invoice_date||b.payment_date||b.expense_date).localeCompare(String(a.created_at||a.invoice_date||a.payment_date||a.expense_date))).slice(0,8));
+      else if (active==="Students & Classes") setRows(studentRows);
+      else if (active==="Fees & Invoices") setRows(invoiceRows);
+      else if (active==="Payments & Receipts") setRows(paymentRows);
+      else if (active==="Expenses & Suppliers") setRows(expenseRows);
+      else if (active==="General Ledger") setRows(accountRows);
+      else if (active==="Settings") setRows(periodRows);
+    } catch(e) { setError(errorText(e)); }
+    finally { setLoading(false); }
+  }, [school,schoolBase,active]);
+
+  useEffect(() => { if(user && school) void loadData(); }, [user,school,active,loadData]);
+
+  async function handleLogin(username:string,password:string) {
+    const response=await login(username,password);
+    setUser(response.user); setSchool(response.user.schools[0] || null);
+  }
+  async function handleLogout() {
+    try { await logout(); } finally { setUser(null); setSchool(null); setRows([]); }
+  }
+  async function submitAction(path:string, payload:Row, message:string) {
+    setBusy(true); clearMessages();
+    try { await api(path,{method:"POST",body:JSON.stringify(payload)}); setSuccess(message); setForm({}); await loadData(); }
+    catch(e) { setError(errorText(e)); }
+    finally { setBusy(false); }
+  }
+  async function createSchool(event:FormEvent) {
+    event.preventDefault(); setBusy(true); clearMessages();
+    try {
+      await api("/api/schools/",{method:"POST",body:JSON.stringify(newSchool)});
+      await refreshSession(); setSuccess("School workspace created.");
+    } catch(e) { setError(errorText(e)); } finally { setBusy(false); }
+  }
+  async function createStudent(event:FormEvent) {
+    event.preventDefault();
+    await submitAction(`${schoolBase}/students/`,{admission_number:form.admission_number,first_name:form.first_name,last_name:form.last_name,middle_name:form.middle_name||"",guardian_name:form.guardian_name||"",guardian_phone:form.guardian_phone||"",admission_date:form.admission_date||today,classroom:form.classroom?Number(form.classroom):null},"Student record created.");
+  }
+  async function createInvoice(event:FormEvent) {
+    event.preventDefault();
+    await submitAction(`${schoolBase}/billing/invoices/`,{student:Number(form.student),academic_year:Number(form.academic_year),period:Number(form.period),invoice_date:form.invoice_date||today,due_date:form.due_date||today,notes:form.notes||"",lines:[{fee_item:Number(form.fee_item),quantity:"1.00",unit_amount:form.unit_amount,description:form.description||""}]},"Draft invoice created.");
+  }
+  async function issueInvoice(id:number) {
+    setBusy(true); clearMessages();
+    try { await api(`${schoolBase}/billing/invoices/${id}/issue/`,{method:"POST",body:JSON.stringify({})}); setSuccess("Invoice issued and posted to the ledger."); await loadData(); }
+    catch(e) { setError(errorText(e)); } finally { setBusy(false); }
+  }
+  async function createPayment(event:FormEvent) {
+    event.preventDefault();
+    await submitAction(`${schoolBase}/billing/payments/`,{student:Number(form.student),payment_date:form.payment_date||today,method:form.method||"MPESA",amount:form.amount,transaction_reference:form.transaction_reference||"",notes:form.payment_notes||"",allocations:[{invoice_id:Number(form.invoice_id),amount:form.amount}]},"Payment received and receipt recorded.");
+  }
+  async function createExpense(event:FormEvent) {
+    event.preventDefault();
+    await submitAction(`${schoolBase}/expenses/`,{supplier:form.supplier?Number(form.supplier):null,category:Number(form.category),period:Number(form.period),expense_date:form.expense_date||today,description:form.description,amount:form.amount,payment_method:form.payment_method||"MPESA",reference:form.reference||""},"Draft expense recorded.");
+  }
+  async function postExpense(id:number) {
+    setBusy(true); clearMessages();
+    try { await api(`${schoolBase}/expenses/${id}/post/`,{method:"POST",body:JSON.stringify({})}); setSuccess("Expense posted to the ledger."); await loadData(); }
+    catch(e) { setError(errorText(e)); } finally { setBusy(false); }
+  }
+
+  const totals = useMemo(()=>({
+    outstanding: invoices.filter(x=>x.status!=="PAID"&&x.status!=="DRAFT"&&x.status!=="VOID").reduce((n,x)=>n+Number(x.balance||0),0),
+    invoiced: invoices.reduce((n,x)=>n+Number(x.total_amount||0),0),
+    students: students.filter(x=>x.status==="ACTIVE").length,
+    invoices: invoices.filter(x=>x.status!=="DRAFT"&&x.status!=="VOID").length,
+  }),[invoices,students]);
+
+  if(loading && !user) return <div className="loading-screen"><div className="crest"><GraduationCap/></div><span>Loading Precious SchoolBooks…</span></div>;
+  if(!user) return <LoginScreen onLogin={handleLogin}/>;
+  if(!school) return <div className="auth-screen"><form className="auth-card" onSubmit={createSchool}><div className="brand auth-brand"><div className="crest"><GraduationCap/></div><div><strong>PRECIOUS</strong><small>SCHOOLBOOKS</small></div></div><h1>Create your school workspace</h1><p>Your account has no school workspace yet. Create one to get started.</p>{error&&<div className="error-banner">{error}</div>}<label>School name<input required value={newSchool.name} onChange={e=>setNewSchool({...newSchool,name:e.target.value})}/></label><label>School code<input required value={newSchool.code} onChange={e=>setNewSchool({...newSchool,code:e.target.value})} placeholder="st-stephen-school"/></label><label>Phone<input value={newSchool.phone} onChange={e=>setNewSchool({...newSchool,phone:e.target.value})}/></label><button className="primary full" disabled={busy}>Create workspace</button><button type="button" className="text-button" onClick={handleLogout}>Sign out</button></form></div>;
+
+  const columns = active==="Students & Classes"
+    ? [{key:"admission_number",label:"Admission No."},{key:"full_name",label:"Student"},{key:"classroom_name",label:"Class"},{key:"guardian_name",label:"Parent / Guardian"},{key:"guardian_phone",label:"Phone"},{key:"status",label:"Status"}]
+    : active==="Fees & Invoices"
+    ? [{key:"invoice_number",label:"Invoice"},{key:"student_name",label:"Student"},{key:"invoice_date",label:"Date"},{key:"due_date",label:"Due date"},{key:"total_amount",label:"Total",format:(v:any)=>money(v,school.currency)},{key:"amount_paid",label:"Paid",format:(v:any)=>money(v,school.currency)},{key:"balance",label:"Balance",format:(v:any)=>money(v,school.currency)},{key:"status",label:"Status"}]
+    : active==="Payments & Receipts"
+    ? [{key:"receipt_number",label:"Receipt"},{key:"student_name",label:"Student"},{key:"payment_date",label:"Date"},{key:"method",label:"Method"},{key:"transaction_reference",label:"Reference"},{key:"amount",label:"Amount",format:(v:any)=>money(v,school.currency)}]
+    : active==="Expenses & Suppliers"
+    ? [{key:"expense_number",label:"Expense No."},{key:"expense_date",label:"Date"},{key:"description",label:"Description"},{key:"category_name",label:"Category"},{key:"supplier_name",label:"Supplier"},{key:"payment_method",label:"Method"},{key:"amount",label:"Amount",format:(v:any)=>money(v,school.currency)},{key:"status",label:"Status"}]
+    : active==="General Ledger"
+    ? [{key:"code",label:"Code"},{key:"name",label:"Account"},{key:"category",label:"Category"},{key:"is_active",label:"Active",format:(v:any)=>v?"Yes":"No"}]
+    : active==="Settings"
+    ? [{key:"name",label:"Financial period"},{key:"starts_on",label:"Start"},{key:"ends_on",label:"End"},{key:"is_locked",label:"Locked",format:(v:any)=>v?"Yes":"No"}]
+    : [{key:"record_type",label:"Type"},{key:"invoice_number",label:"Reference",format:(v:any,row:Row)=>v||row.receipt_number||row.expense_number||"—"},{key:"student_name",label:"Student"},{key:"description",label:"Description"},{key:"amount",label:"Amount",format:(v:any,row:Row)=>money(v||row.total_amount||0,school.currency)},{key:"status",label:"Status"}];
+
+  const heading = active==="Overview" ? "Financial overview" : active;
+  const canWrite = ["OWNER","ADMIN","ACCOUNTANT","BURSAR"].includes(school.role);
+  return <div className="shell">
+    <aside className={menu?"sidebar open":"sidebar"}>
+      <div className="brand"><div className="crest"><GraduationCap size={24}/></div><div><strong>PRECIOUS</strong><small>SCHOOLBOOKS</small></div></div>
+      <div className="school-tag">{school.name.toUpperCase()} WORKSPACE</div>
+      <nav>{nav.map(({label,icon:Icon,disabled})=><button key={label} disabled={disabled} title={disabled?"Coming in a later release":label} className={active===label?"nav-item selected":"nav-item"} onClick={()=>{setActive(label);setMenu(false);clearMessages();}}><Icon size={18}/><span>{label}</span>{disabled&&<small className="soon">Soon</small>}</button>)}</nav>
+      <div className="side-foot"><ShieldCheck size={17}/><span>{school.role.toLowerCase()} access</span></div>
+    </aside>
+    <main className="main">
+      <header><button className="icon-btn mobile" onClick={()=>setMenu(!menu)}><Menu/></button><div className="crumb">Precious SchoolBooks <span>/</span> {active}</div><div className="head-actions"><button className="icon-btn" title="Refresh" onClick={()=>void loadData()}><RefreshCw/></button><div className="avatar">{user.name.slice(0,2).toUpperCase()}</div><div className="user-label">{user.name}<small>{school.role}</small></div><button className="icon-btn" title="Sign out" onClick={handleLogout}><LogOut/></button></div></header>
+      <section className="content">
+        <div className="welcome"><div><div className="eyebrow">SCHOOL FINANCE WORKSPACE</div><h1>{heading}</h1><p>{school.name} · Kenyan Shillings (KES)</p></div><div className="period">Signed in as <strong>{user.username}</strong></div></div>
+        {error&&<div className="error-banner"><AlertCircle size={16}/>{error}</div>}
+        {success&&<div className="success-banner"><CheckCircle2 size={16}/>{success}</div>}
+        {active==="Overview"&&<div className="metric-grid">
+          <div className="metric"><span>Active students</span><strong>{totals.students}</strong><small>Enrolled student records</small></div>
+          <div className="metric"><span>Invoices issued</span><strong>{totals.invoices}</strong><small>{money(totals.invoiced,school.currency)} total invoiced</small></div>
+          <div className="metric"><span>Outstanding fees</span><strong>{money(totals.outstanding,school.currency)}</strong><small>Excludes drafts and void invoices</small></div>
+          <div className="metric"><span>Fee items</span><strong>{feeItems.length}</strong><small>Configured income categories</small></div>
+        </div>}
+        {canWrite&&active==="Students & Classes"&&<form className="entry-panel" onSubmit={createStudent}><div className="panel-heading"><div><h2>Register student</h2><p>Add a student to this school workspace.</p></div><Plus size={18}/></div><div className="form-grid"><label>Admission number<input required value={form.admission_number||""} onChange={e=>setField("admission_number",e.target.value)}/></label><label>First name<input required value={form.first_name||""} onChange={e=>setField("first_name",e.target.value)}/></label><label>Middle name<input value={form.middle_name||""} onChange={e=>setField("middle_name",e.target.value)}/></label><label>Last name<input required value={form.last_name||""} onChange={e=>setField("last_name",e.target.value)}/></label><label>Parent / guardian<input value={form.guardian_name||""} onChange={e=>setField("guardian_name",e.target.value)}/></label><label>Guardian phone<input value={form.guardian_phone||""} onChange={e=>setField("guardian_phone",e.target.value)}/></label><label>Admission date<input type="date" value={form.admission_date||today} onChange={e=>setField("admission_date",e.target.value)}/></label></div><button className="primary" disabled={busy}>Save student</button></form>}
+        {canWrite&&active==="Fees & Invoices"&&<form className="entry-panel" onSubmit={createInvoice}><div className="panel-heading"><div><h2>Create fee invoice</h2><p>Create a draft, review it, then issue it to the ledger.</p></div><Plus size={18}/></div><div className="form-grid"><label>Student<select required value={form.student||""} onChange={e=>setField("student",e.target.value)}><option value="">Select student</option>{students.map(x=><option value={x.id} key={x.id}>{x.admission_number} — {x.full_name}</option>)}</select></label><label>Academic year<select required value={form.academic_year||""} onChange={e=>setField("academic_year",e.target.value)}><option value="">Select year</option>{years.map(x=><option value={x.id} key={x.id}>{x.name}</option>)}</select></label><label>Financial period<select required value={form.period||""} onChange={e=>setField("period",e.target.value)}><option value="">Select period</option>{periods.filter(x=>!x.is_locked).map(x=><option value={x.id} key={x.id}>{x.name}</option>)}</select></label><label>Fee item<select required value={form.fee_item||""} onChange={e=>setField("fee_item",e.target.value)}><option value="">Select fee item</option>{feeItems.filter(x=>x.is_active).map(x=><option value={x.id} key={x.id}>{x.name}</option>)}</select></label><label>Amount (KES)<input type="number" min="0" step="0.01" required value={form.unit_amount||""} onChange={e=>setField("unit_amount",e.target.value)}/></label><label>Invoice date<input type="date" value={form.invoice_date||today} onChange={e=>setField("invoice_date",e.target.value)}/></label><label>Due date<input type="date" value={form.due_date||today} onChange={e=>setField("due_date",e.target.value)}/></label><label>Description<input value={form.description||""} onChange={e=>setField("description",e.target.value)}/></label></div><button className="primary" disabled={busy||!students.length||!years.length||!periods.length||!feeItems.length}>Create draft invoice</button>{(!years.length||!periods.length||!feeItems.length)&&<small className="muted">Setup required: add an academic year, financial period, chart of accounts, billing settings and fee items before invoicing.</small>}</form>}
+        {canWrite&&active==="Payments & Receipts"&&<form className="entry-panel" onSubmit={createPayment}><div className="panel-heading"><div><h2>Record fee payment</h2><p>Allocate a receipt to an issued student invoice.</p></div><Plus size={18}/></div><div className="form-grid"><label>Student<select required value={form.student||""} onChange={e=>{setField("student",e.target.value);setField("invoice_id","");}}><option value="">Select student</option>{students.map(x=><option value={x.id} key={x.id}>{x.admission_number} — {x.full_name}</option>)}</select></label><label>Invoice<select required value={form.invoice_id||""} onChange={e=>setField("invoice_id",e.target.value)}><option value="">Select invoice</option>{invoices.filter(x=>String(x.student)===form.student&&["ISSUED","PART_PAID"].includes(x.status)).map(x=><option value={x.id} key={x.id}>{x.invoice_number} · Balance {money(x.balance,school.currency)}</option>)}</select></label><label>Amount received<input required type="number" min="0.01" step="0.01" value={form.amount||""} onChange={e=>setField("amount",e.target.value)}/></label><label>Payment method<select value={form.method||"MPESA"} onChange={e=>setField("method",e.target.value)}><option value="MPESA">M-Pesa</option><option value="CASH">Cash</option><option value="BANK">Bank</option></select></label><label>Payment date<input type="date" value={form.payment_date||today} onChange={e=>setField("payment_date",e.target.value)}/></label><label>M-Pesa / bank reference<input value={form.transaction_reference||""} onChange={e=>setField("transaction_reference",e.target.value)}/></label></div><button className="primary" disabled={busy||!form.invoice_id}>Record payment and issue receipt</button></form>}
+        {canWrite&&active==="Expenses & Suppliers"&&<form className="entry-panel" onSubmit={createExpense}><div className="panel-heading"><div><h2>Record school expense</h2><p>Save as draft, then post when supporting documents are checked.</p></div><Plus size={18}/></div><div className="form-grid"><label>Description<input required value={form.description||""} onChange={e=>setField("description",e.target.value)}/></label><label>Expense category<select required value={form.category||""} onChange={e=>setField("category",e.target.value)}><option value="">Select category</option>{categories.filter(x=>x.is_active).map(x=><option value={x.id} key={x.id}>{x.name}</option>)}</select></label><label>Supplier (optional)<select value={form.supplier||""} onChange={e=>setField("supplier",e.target.value)}><option value="">No supplier selected</option>{suppliers.filter(x=>x.is_active).map(x=><option value={x.id} key={x.id}>{x.name}</option>)}</select></label><label>Financial period<select required value={form.period||""} onChange={e=>setField("period",e.target.value)}><option value="">Select period</option>{periods.filter(x=>!x.is_locked).map(x=><option value={x.id} key={x.id}>{x.name}</option>)}</select></label><label>Amount (KES)<input required type="number" min="0.01" step="0.01" value={form.amount||""} onChange={e=>setField("amount",e.target.value)}/></label><label>Paid through<select value={form.payment_method||"MPESA"} onChange={e=>setField("payment_method",e.target.value)}><option value="MPESA">M-Pesa</option><option value="CASH">Cash</option><option value="BANK">Bank</option></select></label><label>Expense date<input type="date" value={form.expense_date||today} onChange={e=>setField("expense_date",e.target.value)}/></label><label>Reference<input value={form.reference||""} onChange={e=>setField("reference",e.target.value)}/></label></div><button className="primary" disabled={busy||!categories.length||!periods.length}>Save expense draft</button>{(!categories.length||!periods.length)&&<small className="muted">Setup required: configure an expense category and financial period first.</small>}</form>}
+        {active==="General Ledger"&&<div className="notice"><ShieldCheck size={18}/><div><strong>Ledger controls active</strong><span>Accounts are school-scoped. Posted journals are immutable and must balance. Financial periods must be open when posting.</span></div></div>}
+        {active==="Settings"&&<div className="notice"><Settings size={18}/><div><strong>Financial periods</strong><span>Only open periods can receive new postings. Period creation and billing-account setup are currently managed through authorised configuration endpoints.</span></div></div>}
+        {loading?<div className="table-empty"><RefreshCw className="spin"/> Loading school records…</div>:<div className="data-panel"><div className="panel-heading"><div><h2>{active==="Overview"?"Recent financial activity":active==="Settings"?"Financial periods":active}</h2><p>{active==="Overview"?"Latest invoices, receipts and expenses recorded in this workspace.":"Records belonging to "+school.name+"."}</p></div><button className="secondary" onClick={()=>void loadData()}><RefreshCw size={15}/> Refresh</button></div>
+          <DataTable rows={rows} currency={school.currency} empty="No records found. Add your first record using the form above." columns={columns}/>
+          {active==="Fees & Invoices"&&<div className="row-actions">{rows.filter(x=>x.status==="DRAFT").map(x=><button key={x.id} className="small-action" disabled={busy} onClick={()=>void issueInvoice(x.id)}>Issue {x.invoice_number}</button>)}</div>}
+          {active==="Expenses & Suppliers"&&<div className="row-actions">{rows.filter(x=>x.status==="DRAFT").map(x=><button key={x.id} className="small-action" disabled={busy} onClick={()=>void postExpense(x.id)}>Post {x.expense_number}</button>)}</div>}
+        </div>}
+        <footer>PRECIOUS SCHOOLBOOKS <span>·</span> {school.name.toUpperCase()} <span>·</span> FINANCIAL RECORDS ARE LIVE FROM THE SCHOOL API</footer>
+      </section>
+    </main>
+  </div>;
+}
