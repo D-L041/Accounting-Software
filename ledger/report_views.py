@@ -50,3 +50,18 @@ class BalanceSheetView(SchoolReportView):
 class CashbookView(SchoolReportView):
     def get(self, request, school_pk):
         return Response(build_cashbook(self.get_period(request, school_pk)))
+
+
+class CashFlowView(SchoolReportView):
+    def get(self, request, school_pk):
+        period = self.get_period(request, school_pk)
+        report = build_cashbook(period)
+        return Response({
+            "period": report["period"],
+            "basis": "Direct cash and bank movement from posted ledger entries",
+            "opening_balance_included": False,
+            "total_inflows": report["total_receipts"],
+            "total_outflows": report["total_payments"],
+            "net_cash_movement": report["net_movement"],
+            "transactions": report["transactions"],
+        })
