@@ -84,10 +84,13 @@ def record_payment(*, school, student, payment_date, method, amount, allocations
     )
     for invoice, allocation_amount in invoices.values():
         PaymentAllocation.objects.create(payment=payment, invoice=invoice, amount=allocation_amount)
+    periods = {item[0].period_id for item in invoices.values()}
+    if len(periods) != 1:
+        raise ValidationError("A single receipt cannot allocate across different financial periods.")
     period = next(iter(invoices.values()))[0].period
     if period.is_locked or not (period.starts_on <= payment_date <= period.ends_on):
         raise ValidationError("Payment date must fall within an unlocked financial period.")
-    cash_or_bank = settings.bank_account if method == Payment.Method.BANK else settings.cash_account
+    cash_or_bank = settings.bank_account if method == Payment.Method.BANK else settings.mpesa_account if method == Payment.Method.MPESA else settings.cash_account
     journal = JournalEntry.objects.create(
         school=school, reference=f"RCT-{receipt}",
         description=f"Fee receipt {receipt} — {student}", entry_date=payment_date,
