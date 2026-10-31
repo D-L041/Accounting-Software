@@ -243,3 +243,105 @@ class PayrollWorkflowTests(TestCase):
             f"/api/schools/{self.school.pk}/payroll/runs/{created.data['id']}/statutory-export/?schedule=INVALID"
         )
         self.assertEqual(response.status_code, 400)
+
+
+    def test_verified_employee_tax_claims_are_capped_and_snapshotted(self):
+        updated = self.client.patch(
+            f"/api/schools/{self.school.pk}/payroll/employees/{self.employee.pk}/",
+            {
+                "basic_salary": "100000.00",
+                "monthly_insurance_premiums": "1000.00",
+                "monthly_mortgage_interest": "5000.00",
+                "monthly_post_retirement_medical": "3000.00",
+                "monthly_additional_pension": "5000.00",
+                "tax_claims_reference": "SUPPORT-DOCS-2026-001",
+                "tax_claims_verified": True,
+            }, format="json",
+        )
+        self.assertEqual(updated.status_code, 200, updated.data)
+        created = self.client.post(
+            f"/api/schools/{self.school.pk}/payroll/runs/",
+            {"period": self.period.pk, "payroll_month": "2026-02-01", "pay_date": "2026-02-28"},
+            format="json",
+        )
+        self.assertEqual(created.status_code, 201, created.data)
+        line = PayrollLine.objects.get(run_id=created.data["id"], employee=self.employee)
+        self.assertEqual(line.taxable_pay, Decimal("76750.00"))
+        self.assertEqual(line.insurance_relief, Decimal("150.00"))
+        self.assertEqual(line.mortgage_interest_deduction, Decimal("5000.00"))
+        self.assertEqual(line.post_retirement_medical_deduction, Decimal("3000.00"))
+        self.assertEqual(line.additional_pension_employee, Decimal("5000.00"))
+        self.assertEqual(line.additional_pension_allowable, Decimal("5000.00"))
+
+    def test_unverified_employee_tax_claims_block_payroll_calculation(self):
+        Employee.objects.filter(pk=self.employee.pk).update(monthly_insurance_premiums=Decimal("1000.00"))
+        response = self.client.post(
+            f"/api/schools/{self.school.pk}/payroll/runs/",
+            {"period": self.period.pk, "payroll_month": "2026-02-01", "pay_date": "2026-02-28"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(PayrollRun.objects.filter(school=self.school).exists())
+
+    def test_valid_verified_pwd_certificate_exempts_first_150000_per_month(self):
+        updated = self.client.patch(
+            f"/api/schools/{self.school.pk}/payroll/employees/{self.employee.pk}/",
+            {
+                "basic_salary": "200000.00",
+                "tax_exemption_certificate_ref": "KRA-EXEMPT-2026-001",
+                "tax_exemption_valid_from": "2026-01-01",
+                "tax_exemption_valid_to": "2026-12-31",
+                "tax_exemption_verified": True,
+            }, format="json",
+        )
+        self.assertEqual(updated.status_code, 200, updated.data)
+        created = self.client.post(
+            f"/api/schools/{self.school.pk}/payroll/runs/",
+            {"period": self.period.pk, "payroll_month": "2026-02-01", "pay_date": "2026-02-28"},
+            format="json",
+        )
+        self.assertEqual(created.status_code, 201, created.data)
+        line = PayrollLine.objects.get(run_id=created.data["id"], employee=self.employee)
+        self.assertEqual(line.tax_exempt_income, Decimal("150000.00"))
+        self.assertEqual(line.taxable_pay, Decimal("35500.00"))
+
+    def test_additional_pension_requires_dedicated_payable_account_to_post(self):
+        updated = self.client.patch(
+            f"/api/schools/{self.school.pk}/payroll/employees/{self.employee.pk}/",
+            {
+                "monthly_additional_pension": "5000.00",
+                "tax_claims_reference": "PENSION-STATEMENT-2026-01",
+                "tax_claims_verified": True,
+            }, format="json",
+        )
+        self.assertEqual(updated.status_code, 200, updated.data)
+        created = self.client.post(
+            f"/api/schools/{self.school.pk}/payroll/runs/",
+            {"period": self.period.pk, "payroll_month": "2026-02-01", "pay_date": "2026-02-28"},
+            format="json",
+        )
+        self.assertEqual(created.status_code, 201, created.data)
+        self.assertEqual(self.configure_payroll().status_code, 201)
+        denied = self.client.post(
+            f"/api/schools/{self.school.pk}/payroll/runs/{created.data['id']}/post/",
+            {}, format="json",
+        )
+        self.assertEqual(denied.status_code, 400)
+        pension = Account.objects.create(
+            school=self.school, code="2170", name="Additional Pension Payable", category="LIABILITY"
+        )
+        settings = PayrollSettings.objects.get(school=self.school)
+        settings.additional_pension_payable_account = pension
+        settings.save()
+        posted = self.client.post(
+            f"/api/schools/{self.school.pk}/payroll/runs/{created.data['id']}/post/",
+            {}, format="json",
+        )
+        self.assertEqual(posted.status_code, 200, posted.data)
+        journal = JournalEntry.objects.get(pk=posted.data["journal_entry"])
+        self.assertEqual(journal.lines.get(account=pension).credit, Decimal("5000.00"))
+        exported = self.client.get(
+            f"/api/schools/{self.school.pk}/payroll/runs/{created.data['id']}/statutory-export/?schedule=PENSION"
+        )
+        self.assertEqual(exported.status_code, 200)
+        self.assertIn("5000.00,5000.00", exported.content.decode("utf-8"))
