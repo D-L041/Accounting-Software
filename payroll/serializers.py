@@ -11,7 +11,11 @@ class EmployeeSerializer(serializers.ModelSerializer):
         model = Employee
         fields = [
             "id", "employee_number", "first_name", "last_name", "full_name",
-            "job_title", "basic_salary", "regular_cash_allowances", "monthly_other_deductions", "is_resident", "hire_date",
+            "job_title", "basic_salary", "regular_cash_allowances", "monthly_other_deductions",
+            "monthly_insurance_premiums", "monthly_mortgage_interest", "monthly_post_retirement_medical",
+            "monthly_additional_pension", "tax_claims_reference", "tax_claims_verified",
+            "tax_exemption_certificate_ref", "tax_exemption_valid_from", "tax_exemption_valid_to",
+            "tax_exemption_verified", "is_resident", "hire_date",
             "is_active", "created_at",
         ]
         read_only_fields = ["id", "full_name", "created_at"]
@@ -62,7 +66,10 @@ class PayrollLineSerializer(serializers.ModelSerializer):
             "id", "employee", "employee_name", "employee_number", "basic_salary",
             "other_earnings", "gross_pay", "taxable_pay", "paye",
             "nssf_employee", "shif_employee", "housing_levy_employee",
-            "other_deductions", "net_pay", "nssf_employer", "housing_levy_employer", "nita_levy_employer",
+            "insurance_premium_claimed", "insurance_relief", "mortgage_interest_deduction",
+            "post_retirement_medical_deduction", "additional_pension_employee",
+            "additional_pension_allowable", "tax_exempt_income", "other_deductions",
+            "net_pay", "nssf_employer", "housing_levy_employer", "nita_levy_employer",
         ]
 
 
