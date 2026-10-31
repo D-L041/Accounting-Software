@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { api, login, logout, School, User } from "./api";
 import ReportPanel from "./ReportPanel";
+import CashbookPanel from "./CashbookPanel";
 
 type Row = Record<string, any>;
 const nav = [
@@ -15,7 +16,7 @@ const nav = [
   { label: "Payments & Receipts", icon: Wallet },
   { label: "Expenses & Suppliers", icon: ArrowDownRight },
   { label: "General Ledger", icon: BookOpen },
-  { label: "Cashbook & Banks", icon: Landmark, disabled: true },
+  { label: "Cashbook & Banks", icon: Landmark },
   { label: "Staff & Payroll", icon: Users, disabled: true },
   { label: "Reports", icon: ArrowUpRight },
   { label: "Audit Log", icon: ClipboardList },
@@ -73,6 +74,8 @@ export default function App() {
   const [billingSettings,setBillingSettings] = useState<Row|null>(null);
   const [trialBalance,setTrialBalance] = useState<Row|null>(null);
   const [auditRows,setAuditRows] = useState<Row[]>([]);
+  const [cashbook,setCashbook] = useState<Row|null>(null);
+  const [cashbookPeriod,setCashbookPeriod] = useState("");
   const [reportPeriod,setReportPeriod] = useState("");
   const [reportType,setReportType] = useState("trial-balance");
   const [invoices,setInvoices] = useState<Row[]>([]);
@@ -301,10 +304,10 @@ export default function App() {
           <form className="entry-panel" onSubmit={saveBillingSettings}><div className="panel-heading"><div><h2>Billing account mappings</h2><p>Choose asset accounts for receivables and collections.</p></div><ShieldCheck size={18}/></div><div className="form-grid">{[["receivables_account","Student receivables"],["cash_account","Cash"],["bank_account","Bank"],["mpesa_account","M-Pesa clearing"]].map(([key,label])=><label key={key}>{label}<select required value={form[key]||String(billingSettings?.[key]||"")} onChange={e=>setField(key,e.target.value)}><option value="">Select asset account</option>{accounts.filter(x=>x.category==="ASSET"&&x.is_active).map(x=><option value={x.id} key={x.id}>{x.code} — {x.name}</option>)}</select></label>)}</div><div className="form-grid"><label>Invoice prefix<input value={form.invoice_prefix||billingSettings?.invoice_prefix||"INV"} onChange={e=>setField("invoice_prefix",e.target.value)}/></label><label>Receipt prefix<input value={form.receipt_prefix||billingSettings?.receipt_prefix||"RCT"} onChange={e=>setField("receipt_prefix",e.target.value)}/></label></div><button className="primary" disabled={busy||accounts.filter(x=>x.category==="ASSET").length<1}>Save billing settings</button></form>
         </div>}
 \n
-        {active==="Reports"&&<ReportPanel reportType={reportType} setReportType={setReportType} reportPeriod={reportPeriod} setReportPeriod={setReportPeriod} periods={periods} report={trialBalance} currency={school.currency}/>}
+        {active==="Cashbook & Banks"&&<CashbookPanel periods={periods} periodId={cashbookPeriod} setPeriodId={setCashbookPeriod} report={cashbook} currency={school.currency}/>}\n        {active==="Reports"&&<ReportPanel reportType={reportType} setReportType={setReportType} reportPeriod={reportPeriod} setReportPeriod={setReportPeriod} periods={periods} report={trialBalance} currency={school.currency}/>}
         {active==="General Ledger"&&<div className="notice"><ShieldCheck size={18}/><div><strong>Ledger controls active</strong><span>Accounts are school-scoped. Posted journals are immutable and must balance. Financial periods must be open when posting.</span></div></div>}
         {active==="Settings"&&<div className="notice"><Settings size={18}/><div><strong>Financial periods</strong><span>Only open periods can receive new postings. Period creation and billing-account setup are currently managed through authorised configuration endpoints.</span></div></div>}
-        {loading?<div className="table-empty"><RefreshCw className="spin"/> Loading school records…</div>:<div className="data-panel"><div className="panel-heading"><div><h2>{active==="Overview"?"Recent financial activity":active==="Settings"?"Financial periods":active}</h2><p>{active==="Overview"?"Latest invoices, receipts and expenses recorded in this workspace.":"Records belonging to "+school.name+"."}</p></div><button className="secondary" onClick={()=>void loadData()}><RefreshCw size={15}/> Refresh</button></div>
+        {loading&&active!=="Cashbook & Banks"?<div className="table-empty"><RefreshCw className="spin"/> Loading school records…</div>:active==="Cashbook & Banks"?null:<div className="data-panel"><div className="panel-heading"><div><h2>{active==="Overview"?"Recent financial activity":active==="Settings"?"Financial periods":active}</h2><p>{active==="Overview"?"Latest invoices, receipts and expenses recorded in this workspace.":"Records belonging to "+school.name+"."}</p></div><button className="secondary" onClick={()=>void loadData()}><RefreshCw size={15}/> Refresh</button></div>
           {active==="Audit Log"&&<DataTable rows={auditRows} currency={school.currency} empty="No audit events have been recorded yet." columns={columns}/>}{active!=="Reports"&&active!=="Audit Log"&&<DataTable rows={rows} currency={school.currency} empty="No records found. Add your first record using the form above." columns={columns}/>}
           {active==="Fees & Invoices"&&<div className="row-actions">{rows.filter(x=>x.status==="DRAFT").map(x=><button key={x.id} className="small-action" disabled={busy} onClick={()=>void issueInvoice(x.id)}>Issue {x.invoice_number}</button>)}</div>}
           {active==="Expenses & Suppliers"&&<div className="row-actions">{rows.filter(x=>x.status==="DRAFT").map(x=><button key={x.id} className="small-action" disabled={busy} onClick={()=>void postExpense(x.id)}>Post {x.expense_number}</button>)}</div>}
