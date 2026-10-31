@@ -150,7 +150,7 @@ class FeeScheduleLineInputSerializer(serializers.Serializer):
 
 
 class FeeScheduleSerializer(serializers.ModelSerializer):
-    lines = FeeScheduleLineInputSerializer(many=True, write_only=True)
+    lines = FeeScheduleLineInputSerializer(many=True, write_only=True, min_length=1)
     line_items = serializers.SerializerMethodField()
     student_count = serializers.SerializerMethodField()
     generated_invoice_count = serializers.SerializerMethodField()
@@ -179,7 +179,13 @@ class FeeScheduleSerializer(serializers.ModelSerializer):
         due_date = attrs.get("due_date", getattr(self.instance, "due_date", None))
         if invoice_date and due_date and due_date < invoice_date:
             raise serializers.ValidationError({"due_date": "Due date cannot precede invoice date."})
-        for line in attrs.get("lines", []):
+        if period and invoice_date and not (period.starts_on <= invoice_date <= period.ends_on):
+            raise serializers.ValidationError({"invoice_date": "Invoice date must fall within the selected financial period."})
+        schedule_lines = attrs.get("lines", [])
+        fee_ids = [line["fee_item"].pk for line in schedule_lines]
+        if len(fee_ids) != len(set(fee_ids)):
+            raise serializers.ValidationError({"lines": "A fee item can only appear once in a schedule."})
+        for line in schedule_lines:
             if line["fee_item"].school_id != school.id or not line["fee_item"].is_active:
                 raise serializers.ValidationError({"lines": "All fee items must be active and belong to this school."})
         if self.instance and self.instance.generated_invoices.exists():
