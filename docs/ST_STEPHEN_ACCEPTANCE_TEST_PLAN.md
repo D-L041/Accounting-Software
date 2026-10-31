@@ -51,6 +51,19 @@ Record the release commit, environment, date, test operator, school representati
 
 ## E. Expenses, supplier bills, budgets and procurement
 
+### Purchase orders and approvals
+
+1. Create a draft purchase order with at least two line items and verify quantity × unit cost totals.
+2. Configure school-specific approval thresholds, including an additional approval step above a higher KES threshold.
+3. Submit a draft order and verify the configured approval steps are created in sequence.
+4. Confirm the creator cannot approve their own order and a user with the wrong role cannot approve the current step.
+5. Approve each step using the required roles and verify the order becomes APPROVED only after the final step.
+6. Confirm submitted order details and lines are immutable, and purchase orders do not create journals or supplier payments.
+7. Confirm a supplier or financial period belonging to another school is rejected.
+
+**Pass evidence:** purchase order register, configured approval rules, approval audit events and proof that no journal was posted.
+
+
 1. Create a supplier and expense category linked to an expense account.
 2. Create a draft expense, post it and confirm the balanced cash/bank/M-Pesa journal.
 3. Create a supplier bill; confirm the creator cannot approve their own bill where separation is required.
