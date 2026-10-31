@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "accounts",
     "ledger",
+    "billing",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
