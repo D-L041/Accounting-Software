@@ -188,3 +188,115 @@ class BillingApiTests(TestCase):
             f"/api/schools/{other.pk}/billing/payments/{payment.data['id']}/receipt/"
         )
         self.assertEqual(response.status_code, 404)
+
+    def test_credit_note_posts_reversal_and_reduces_invoice_balance(self):
+        invoice = self.make_invoice()
+        issued = self.client.post(
+            f"/api/schools/{self.school.pk}/billing/invoices/{invoice['id']}/issue/", {}, format="json"
+        )
+        self.assertEqual(issued.status_code, 200, issued.data)
+        invoice_obj = Invoice.objects.get(pk=invoice["id"])
+        invoice_line = invoice_obj.lines.get()
+        created = self.client.post(
+            f"/api/schools/{self.school.pk}/billing/credit-notes/",
+            {
+                "invoice": invoice_obj.pk, "period": self.period.pk,
+                "credit_date": "2026-02-05", "reason": "Fee adjustment",
+                "lines": [{"invoice_line": invoice_line.pk, "amount": "3000.00"}],
+            },
+            format="json",
+        )
+        self.assertEqual(created.status_code, 201, created.data)
+        posted = self.client.post(
+            f"/api/schools/{self.school.pk}/billing/credit-notes/{created.data['id']}/post/",
+            {}, format="json",
+        )
+        self.assertEqual(posted.status_code, 200, posted.data)
+        invoice_obj.refresh_from_db()
+        self.assertEqual(invoice_obj.total_amount, Decimal("12000.00"))
+        self.assertEqual(invoice_obj.balance, Decimal("12000.00"))
+        journal = JournalEntry.objects.get(pk=posted.data["journal_entry"])
+        self.assertTrue(journal.posted)
+        self.assertEqual(journal.lines.get(debit__gt=0).account_id, self.income.pk)
+        self.assertEqual(journal.lines.get(credit__gt=0).account_id, self.ar.pk)
+        self.assertEqual(journal.lines.get(debit__gt=0).debit, Decimal("3000.00"))
+
+    def test_credit_note_cannot_credit_more_than_original_invoice_line(self):
+        invoice = self.make_invoice()
+        self.client.post(
+            f"/api/schools/{self.school.pk}/billing/invoices/{invoice['id']}/issue/", {}, format="json"
+        )
+        invoice_obj = Invoice.objects.get(pk=invoice["id"])
+        line = invoice_obj.lines.get()
+        created = self.client.post(
+            f"/api/schools/{self.school.pk}/billing/credit-notes/",
+            {
+                "invoice": invoice_obj.pk, "period": self.period.pk,
+                "credit_date": "2026-02-05", "reason": "Invalid adjustment",
+                "lines": [{"invoice_line": line.pk, "amount": "16000.00"}],
+            },
+            format="json",
+        )
+        self.assertEqual(created.status_code, 400)
+
+    def test_payment_refund_reopens_invoice_balance_and_posts_reversal(self):
+        invoice = self.make_invoice()
+        self.client.post(
+            f"/api/schools/{self.school.pk}/billing/invoices/{invoice['id']}/issue/", {}, format="json"
+        )
+        received = self.client.post(
+            f"/api/schools/{self.school.pk}/billing/payments/",
+            {
+                "student": self.student.pk, "payment_date": "2026-02-03", "method": "MPESA",
+                "amount": "5000.00", "transaction_reference": "REFUND-TEST-001",
+                "allocations": [{"invoice_id": invoice["id"], "amount": "5000.00"}],
+            },
+            format="json",
+        )
+        self.assertEqual(received.status_code, 201, received.data)
+        payment = Payment.objects.get(pk=received.data["id"])
+        refunded = self.client.post(
+            f"/api/schools/{self.school.pk}/billing/payments/{payment.pk}/refunds/",
+            {
+                "invoice": invoice["id"], "period": self.period.pk,
+                "payment_account": self.mpesa.pk, "refund_date": "2026-02-06",
+                "amount": "2000.00", "reference": "MPESA-REFUND-001",
+            },
+            format="json",
+        )
+        self.assertEqual(refunded.status_code, 201, refunded.data)
+        invoice_obj = Invoice.objects.get(pk=invoice["id"])
+        self.assertEqual(invoice_obj.amount_paid, Decimal("3000.00"))
+        self.assertEqual(invoice_obj.balance, Decimal("12000.00"))
+        self.assertEqual(invoice_obj.status, Invoice.Status.PART_PAID)
+        journal = JournalEntry.objects.get(pk=refunded.data["journal_entry"])
+        self.assertTrue(journal.posted)
+        self.assertEqual(journal.lines.get(debit__gt=0).account_id, self.ar.pk)
+        self.assertEqual(journal.lines.get(credit__gt=0).account_id, self.mpesa.pk)
+
+    def test_payment_refund_cannot_exceed_original_allocation(self):
+        invoice = self.make_invoice()
+        self.client.post(
+            f"/api/schools/{self.school.pk}/billing/invoices/{invoice['id']}/issue/", {}, format="json"
+        )
+        received = self.client.post(
+            f"/api/schools/{self.school.pk}/billing/payments/",
+            {
+                "student": self.student.pk, "payment_date": "2026-02-03", "method": "BANK",
+                "amount": "2500.00", "allocations": [{"invoice_id": invoice["id"], "amount": "2500.00"}],
+            },
+            format="json",
+        )
+        self.assertEqual(received.status_code, 201, received.data)
+        response = self.client.post(
+            f"/api/schools/{self.school.pk}/billing/payments/{received.data['id']}/refunds/",
+            {
+                "invoice": invoice["id"], "period": self.period.pk,
+                "payment_account": self.bank.pk, "refund_date": "2026-02-06",
+                "amount": "2501.00",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(JournalEntry.objects.filter(reference__startswith="REF-").count(), 0)
+
