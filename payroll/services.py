@@ -142,6 +142,7 @@ def post_payroll_run(run_id, user):
     nssf = sum((line.nssf_employee + line.nssf_employer for line in lines), Decimal("0.00"))
     shif = sum((line.shif_employee for line in lines), Decimal("0.00"))
     housing = sum((line.housing_levy_employee + line.housing_levy_employer for line in lines), Decimal("0.00"))
+    other_deductions = sum((line.other_deductions for line in lines), Decimal("0.00"))
     employer_cost = sum((line.nssf_employer + line.housing_levy_employer for line in lines), Decimal("0.00"))
     journal = JournalEntry.objects.create(
         school=run.school, reference=f"PAY-{run.payroll_month:%Y%m}",
@@ -159,6 +160,7 @@ def post_payroll_run(run_id, user):
         (settings.nssf_payable_account, nssf, "Employee and employer NSSF payable"),
         (settings.shif_payable_account, shif, "SHIF payable"),
         (settings.housing_levy_payable_account, housing, "Employee and employer housing levy payable"),
+        (settings.other_deductions_payable_account, other_deductions, "Other employee deductions payable"),
     ]
     for account, amount, description in credits:
         if amount > 0:
