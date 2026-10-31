@@ -67,6 +67,19 @@ def create_payroll_run(*, school, period, payroll_month, pay_date, user):
     employees = list(Employee.objects.filter(school=school, is_active=True).order_by("id"))
     if not employees:
         raise ValidationError("Add at least one active employee before creating payroll.")
+    for employee in employees:
+        has_claims = any(getattr(employee, field) > 0 for field in (
+            "monthly_insurance_premiums", "monthly_mortgage_interest",
+            "monthly_post_retirement_medical", "monthly_additional_pension",
+        ))
+        if has_claims and not employee.tax_claims_verified:
+            raise ValidationError(
+                f"Tax claims for employee {employee.employee_number} need supporting documents and administrator verification."
+            )
+        if employee.tax_exemption_certificate_ref and not employee.tax_exemption_verified:
+            raise ValidationError(
+                f"Tax exemption certificate for employee {employee.employee_number} has not been verified."
+            )
     rules = {
         code: effective_rule(school, code, payroll_month)
         for code in PayrollRule.Code.values
@@ -94,6 +107,17 @@ def create_payroll_run(*, school, period, payroll_month, pay_date, user):
         )
         housing_employee = money(gross * rules["HOUSING_LEVY"].employee_rate)
         housing_employer = money(gross * rules["HOUSING_LEVY"].employer_rate)
+        mortgage_deduction = min(money(employee.monthly_mortgage_interest), Decimal("30000.00"))
+        medical_fund_deduction = min(money(employee.monthly_post_retirement_medical), Decimal("15000.00"))
+        # KRA's KES 30,000 monthly pension cap is shared by NSSF and additional registered pension.
+        additional_pension_employee = money(employee.monthly_additional_pension)
+        additional_pension_allowable = min(
+            additional_pension_employee, max(Decimal("0.00"), Decimal("30000.00") - nssf_employee)
+        )
+        insurance_relief = min(
+            money(money(employee.monthly_insurance_premiums) * Decimal("0.15")),
+            Decimal("5000.00"),
+        )
         taxable = gross
         for code, deduction in (
             ("NSSF", nssf_employee),
@@ -102,18 +126,35 @@ def create_payroll_run(*, school, period, payroll_month, pay_date, user):
         ):
             if rules[code].deductible_for_paye:
                 taxable -= deduction
-        taxable = max(Decimal("0.00"), taxable)
-        relief = rules["PERSONAL_RELIEF"].fixed_employee if employee.is_resident else Decimal("0.00")
-        paye = calculate_paye(taxable, bands, relief)
+        taxable -= mortgage_deduction + medical_fund_deduction + additional_pension_allowable
+        exemption_valid = (
+            employee.tax_exemption_verified
+            and employee.tax_exemption_valid_from <= payroll_month
+            and employee.tax_exemption_valid_to >= payroll_month
+        )
+        tax_exempt_income = min(gross, Decimal("150000.00")) if exemption_valid else Decimal("0.00")
+        taxable = max(Decimal("0.00"), taxable - tax_exempt_income)
+        personal_relief = rules["PERSONAL_RELIEF"].fixed_employee if employee.is_resident else Decimal("0.00")
+        paye = calculate_paye(taxable, bands, personal_relief + insurance_relief)
         other_deductions = money(employee.monthly_other_deductions)
-        net = money(gross - paye - nssf_employee - shif_employee - housing_employee - other_deductions)
+        net = money(
+            gross - paye - nssf_employee - shif_employee - housing_employee
+            - other_deductions - additional_pension_employee
+        )
         if net < 0:
             raise ValidationError(f"Statutory deductions exceed gross pay for employee {employee.employee_number}.")
         PayrollLine.objects.create(
             run=run, employee=employee, basic_salary=employee.basic_salary,
             other_earnings=employee.regular_cash_allowances, gross_pay=gross, taxable_pay=money(taxable),
             paye=paye, nssf_employee=nssf_employee, shif_employee=shif_employee,
-            housing_levy_employee=housing_employee, other_deductions=other_deductions, net_pay=net,
+            housing_levy_employee=housing_employee,
+            insurance_premium_claimed=money(employee.monthly_insurance_premiums),
+            insurance_relief=insurance_relief, mortgage_interest_deduction=mortgage_deduction,
+            post_retirement_medical_deduction=medical_fund_deduction,
+            additional_pension_employee=additional_pension_employee,
+            additional_pension_allowable=additional_pension_allowable,
+            tax_exempt_income=tax_exempt_income,
+            other_deductions=other_deductions, net_pay=net,
             nssf_employer=nssf_employer, housing_levy_employer=housing_employer,
             nita_levy_employer=nita_levy_employer,
         )
@@ -145,7 +186,7 @@ def post_payroll_run(run_id, user):
     nssf = sum((line.nssf_employee + line.nssf_employer for line in lines), Decimal("0.00"))
     shif = sum((line.shif_employee for line in lines), Decimal("0.00"))
     housing = sum((line.housing_levy_employee + line.housing_levy_employer for line in lines), Decimal("0.00"))
-    other_deductions = sum((line.other_deductions for line in lines), Decimal("0.00"))
+    other_deductions = sum((line.other_deductions + line.additional_pension_employee for line in lines), Decimal("0.00"))
     nita = sum((line.nita_levy_employer for line in lines), Decimal("0.00"))
     employer_cost = sum((line.nssf_employer + line.housing_levy_employer + line.nita_levy_employer for line in lines), Decimal("0.00"))
     if nita > 0 and not settings.nita_payable_account_id:
