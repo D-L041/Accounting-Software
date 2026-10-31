@@ -102,6 +102,10 @@ class JournalEntryViewSet(SchoolLedgerViewSet):
             "period", "created_by"
         ).prefetch_related("lines__account").order_by("-entry_date", "-id")
 
+    def perform_create(self, serializer):
+        self.check_write_role()
+        serializer.save()
+
     @action(detail=True, methods=["post"])
     def post_entry(self, request, school_pk=None, pk=None):
         self.check_write_role()
