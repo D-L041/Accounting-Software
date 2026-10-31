@@ -66,6 +66,8 @@ export default function App() {
   const [success,setSuccess] = useState("");
   const [rows,setRows] = useState<Row[]>([]);
   const [students,setStudents] = useState<Row[]>([]);
+  const [classrooms,setClassrooms] = useState<Row[]>([]);
+  const [feeSchedules,setFeeSchedules] = useState<Row[]>([]);
   const [years,setYears] = useState<Row[]>([]);
   const [periods,setPeriods] = useState<Row[]>([]);
   const [feeItems,setFeeItems] = useState<Row[]>([]);
@@ -109,12 +111,14 @@ export default function App() {
     if (!school) return;
     setLoading(true); setError("");
     try {
-      const [studentRows, yearRows, periodRows, accountRows, feeRows, invoiceRows, paymentRows, expenseRows, categoryRows, supplierRows, billingRows] = await Promise.all([
+      const [studentRows, classroomRows, yearRows, periodRows, accountRows, feeRows, scheduleRows, invoiceRows, paymentRows, expenseRows, categoryRows, supplierRows, billingRows] = await Promise.all([
         api<Row[]>(`${schoolBase}/students/`),
+        api<Row[]>(`${schoolBase}/classrooms/`),
         api<Row[]>(`${schoolBase}/academic-years/`),
         api<Row[]>(`${schoolBase}/ledger/periods/`),
         api<Row[]>(`${schoolBase}/ledger/accounts/`),
         api<Row[]>(`${schoolBase}/billing/fee-items/`),
+        api<Row[]>(`${schoolBase}/billing/fee-schedules/`),
         api<Row[]>(`${schoolBase}/billing/invoices/`),
         api<Row[]>(`${schoolBase}/billing/payments/`),
         api<Row[]>(`${schoolBase}/expenses/`),
@@ -122,7 +126,7 @@ export default function App() {
         api<Row[]>(`${schoolBase}/expenses/suppliers/`),
         api<Row[]>(`${schoolBase}/billing/settings/`),
       ]);
-      setStudents(studentRows); setYears(yearRows); setPeriods(periodRows); setAccounts(accountRows);
+      setStudents(studentRows); setClassrooms(classroomRows); setFeeSchedules(scheduleRows); setYears(yearRows); setPeriods(periodRows); setAccounts(accountRows);
       setFeeItems(feeRows); setInvoices(invoiceRows); setCategories(categoryRows); setSuppliers(supplierRows); setBillingSettings(billingRows[0] || null);
       if (active==="Overview") { const activity: Row[] = [...invoiceRows.slice(0,5).map(x=>({...x,record_type:"Invoice"})), ...paymentRows.slice(0,5).map(x=>({...x,record_type:"Receipt"})), ...expenseRows.slice(0,5).map(x=>({...x,record_type:"Expense"}))]; setRows(activity.sort((a,b)=>String(b.created_at||b.invoice_date||b.payment_date||b.expense_date).localeCompare(String(a.created_at||a.invoice_date||a.payment_date||a.expense_date))).slice(0,8)); }
       else if (active==="Students & Classes") setRows(studentRows);
@@ -186,6 +190,24 @@ export default function App() {
   async function createStudent(event:FormEvent) {
     event.preventDefault();
     await submitAction(`${schoolBase}/students/`,{admission_number:form.admission_number,first_name:form.first_name,last_name:form.last_name,middle_name:form.middle_name||"",guardian_name:form.guardian_name||"",guardian_phone:form.guardian_phone||"",admission_date:form.admission_date||today,classroom:form.classroom?Number(form.classroom):null},"Student record created.");
+  }
+  async function createFeeSchedule(event:FormEvent) {
+    event.preventDefault();
+    await submitAction(schoolBase + "/billing/fee-schedules/",{
+      academic_year:Number(form.schedule_year),classroom:Number(form.schedule_class),
+      period:Number(form.schedule_period),term_name:form.schedule_term,
+      invoice_date:form.schedule_invoice_date||today,due_date:form.schedule_due_date||today,
+      lines:[{fee_item:Number(form.schedule_fee_item),amount:form.schedule_amount}],
+    },"Fee schedule created.");
+  }
+  async function generateScheduleInvoices(id:number) {
+    setBusy(true); clearMessages();
+    try {
+      const result=await api<Row>(schoolBase + "/billing/fee-schedules/" + id + "/generate-invoices/",{method:"POST",body:JSON.stringify({})});
+      setSuccess("Generated " + result.generated_count + " draft invoices. " + result.skipped_existing_count + " existing invoices were skipped.");
+      await loadData();
+    } catch(e) { setError(errorText(e)); }
+    finally { setBusy(false); }
   }
   async function createInvoice(event:FormEvent) {
     event.preventDefault();
@@ -298,6 +320,24 @@ export default function App() {
 
         {canWrite&&active==="Students & Classes"&&<form className="entry-panel" onSubmit={createClassroom}><div className="panel-heading"><div><h2>Create class or stream</h2><p>Assign classes to an academic year.</p></div><Plus size={18}/></div><div className="form-grid"><label>Academic year<select required value={form.class_year||""} onChange={e=>setField("class_year",e.target.value)}><option value="">Select year</option>{years.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label><label>Class name<input required value={form.class_name||""} onChange={e=>setField("class_name",e.target.value)} placeholder="Grade 1 / Form 1"/></label><label>Stream<input value={form.class_stream||""} onChange={e=>setField("class_stream",e.target.value)} placeholder="East / A"/></label><label>Class teacher<input value={form.class_teacher||""} onChange={e=>setField("class_teacher",e.target.value)}/></label></div><button className="primary" disabled={busy||!years.length}>Save class</button></form>}
         {canWrite&&active==="Students & Classes"&&<form className="entry-panel" onSubmit={createStudent}><div className="panel-heading"><div><h2>Register student</h2><p>Add a student to this school workspace.</p></div><Plus size={18}/></div><div className="form-grid"><label>Admission number<input required value={form.admission_number||""} onChange={e=>setField("admission_number",e.target.value)}/></label><label>First name<input required value={form.first_name||""} onChange={e=>setField("first_name",e.target.value)}/></label><label>Middle name<input value={form.middle_name||""} onChange={e=>setField("middle_name",e.target.value)}/></label><label>Last name<input required value={form.last_name||""} onChange={e=>setField("last_name",e.target.value)}/></label><label>Parent / guardian<input value={form.guardian_name||""} onChange={e=>setField("guardian_name",e.target.value)}/></label><label>Guardian phone<input value={form.guardian_phone||""} onChange={e=>setField("guardian_phone",e.target.value)}/></label><label>Admission date<input type="date" value={form.admission_date||today} onChange={e=>setField("admission_date",e.target.value)}/></label></div><button className="primary" disabled={busy}>Save student</button></form>}
+
+        {canWrite&&active==="Fees & Invoices"&&<div className="entry-panel fee-schedule-panel">
+          <div className="panel-heading"><div><h2>Class and term fee schedule</h2><p>Set fees once, then generate draft invoices for every active learner in the selected class.</p></div><ClipboardList size={18}/></div>
+          <form onSubmit={createFeeSchedule}><div className="form-grid">
+            <label>Academic year<select required value={form.schedule_year||""} onChange={e=>setField("schedule_year",e.target.value)}><option value="">Select year</option>{years.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
+            <label>Class / stream<select required value={form.schedule_class||""} onChange={e=>setField("schedule_class",e.target.value)}><option value="">Select class</option>{classrooms.map(x=><option key={x.id} value={x.id}>{x.name} {x.stream}</option>)}</select></label>
+            <label>Financial period<select required value={form.schedule_period||""} onChange={e=>setField("schedule_period",e.target.value)}><option value="">Select period</option>{periods.filter(x=>!x.is_locked).map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
+            <label>Term name<input required value={form.schedule_term||""} onChange={e=>setField("schedule_term",e.target.value)} placeholder="Term 1"/></label>
+            <label>Invoice date<input type="date" required value={form.schedule_invoice_date||today} onChange={e=>setField("schedule_invoice_date",e.target.value)}/></label>
+            <label>Due date<input type="date" required value={form.schedule_due_date||today} onChange={e=>setField("schedule_due_date",e.target.value)}/></label>
+            <label>Fee item<select required value={form.schedule_fee_item||""} onChange={e=>setField("schedule_fee_item",e.target.value)}><option value="">Select fee item</option>{feeItems.filter(x=>x.is_active).map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
+            <label>Amount per learner (KES)<input type="number" min="0.01" step="0.01" required value={form.schedule_amount||""} onChange={e=>setField("schedule_amount",e.target.value)}/></label>
+          </div><button className="primary" disabled={busy||!years.length||!classrooms.length||!periods.length||!feeItems.length}>Save fee schedule</button></form>
+          <div className="table-wrap"><table><thead><tr><th>Class</th><th>Academic year</th><th>Term</th><th>Active learners</th><th>Draft invoices generated</th><th>Fee items</th><th>Action</th></tr></thead><tbody>
+            {feeSchedules.map(schedule=><tr key={schedule.id}><td>{schedule.classroom_name||classrooms.find(x=>x.id===schedule.classroom)?.name||"Class"}</td><td>{schedule.academic_year_name||years.find(x=>x.id===schedule.academic_year)?.name||"—"}</td><td>{schedule.term_name}</td><td>{schedule.student_count}</td><td>{schedule.generated_invoice_count}</td><td>{(schedule.line_items||[]).map((x:Row)=>x.fee_item_name+" ("+money(x.amount,school.currency)+")").join(", ")}</td><td><button className="small-action" disabled={busy||!schedule.is_active||!schedule.student_count} onClick={()=>void generateScheduleInvoices(schedule.id)}>Generate drafts</button></td></tr>)}
+            {!feeSchedules.length&&<tr><td colSpan={7}>No class fee schedules created yet.</td></tr>}
+          </tbody></table></div>
+        </div>}
         {canWrite&&active==="Fees & Invoices"&&<form className="entry-panel" onSubmit={createInvoice}><div className="panel-heading"><div><h2>Create fee invoice</h2><p>Create a draft, review it, then issue it to the ledger.</p></div><Plus size={18}/></div><div className="form-grid"><label>Student<select required value={form.student||""} onChange={e=>setField("student",e.target.value)}><option value="">Select student</option>{students.map(x=><option value={x.id} key={x.id}>{x.admission_number} — {x.full_name}</option>)}</select></label><label>Academic year<select required value={form.academic_year||""} onChange={e=>setField("academic_year",e.target.value)}><option value="">Select year</option>{years.map(x=><option value={x.id} key={x.id}>{x.name}</option>)}</select></label><label>Financial period<select required value={form.period||""} onChange={e=>setField("period",e.target.value)}><option value="">Select period</option>{periods.filter(x=>!x.is_locked).map(x=><option value={x.id} key={x.id}>{x.name}</option>)}</select></label><label>Fee item<select required value={form.fee_item||""} onChange={e=>setField("fee_item",e.target.value)}><option value="">Select fee item</option>{feeItems.filter(x=>x.is_active).map(x=><option value={x.id} key={x.id}>{x.name}</option>)}</select></label><label>Amount (KES)<input type="number" min="0" step="0.01" required value={form.unit_amount||""} onChange={e=>setField("unit_amount",e.target.value)}/></label><label>Invoice date<input type="date" value={form.invoice_date||today} onChange={e=>setField("invoice_date",e.target.value)}/></label><label>Due date<input type="date" value={form.due_date||today} onChange={e=>setField("due_date",e.target.value)}/></label><label>Description<input value={form.description||""} onChange={e=>setField("description",e.target.value)}/></label></div><button className="primary" disabled={busy||!students.length||!years.length||!periods.length||!feeItems.length}>Create draft invoice</button>{(!years.length||!periods.length||!feeItems.length)&&<small className="muted">Setup required: add an academic year, financial period, chart of accounts, billing settings and fee items before invoicing.</small>}</form>}
         {canWrite&&active==="Payments & Receipts"&&<form className="entry-panel" onSubmit={createPayment}><div className="panel-heading"><div><h2>Record fee payment</h2><p>Allocate a receipt to an issued student invoice.</p></div><Plus size={18}/></div><div className="form-grid"><label>Student<select required value={form.student||""} onChange={e=>{setField("student",e.target.value);setField("invoice_id","");}}><option value="">Select student</option>{students.map(x=><option value={x.id} key={x.id}>{x.admission_number} — {x.full_name}</option>)}</select></label><label>Invoice<select required value={form.invoice_id||""} onChange={e=>setField("invoice_id",e.target.value)}><option value="">Select invoice</option>{invoices.filter(x=>String(x.student)===form.student&&["ISSUED","PART_PAID"].includes(x.status)).map(x=><option value={x.id} key={x.id}>{x.invoice_number} · Balance {money(x.balance,school.currency)}</option>)}</select></label><label>Amount received<input required type="number" min="0.01" step="0.01" value={form.amount||""} onChange={e=>setField("amount",e.target.value)}/></label><label>Payment method<select value={form.method||"MPESA"} onChange={e=>setField("method",e.target.value)}><option value="MPESA">M-Pesa</option><option value="CASH">Cash</option><option value="BANK">Bank</option></select></label><label>Payment date<input type="date" value={form.payment_date||today} onChange={e=>setField("payment_date",e.target.value)}/></label><label>M-Pesa / bank reference<input value={form.transaction_reference||""} onChange={e=>setField("transaction_reference",e.target.value)}/></label></div><button className="primary" disabled={busy||!form.invoice_id}>Record payment and issue receipt</button></form>}
 
