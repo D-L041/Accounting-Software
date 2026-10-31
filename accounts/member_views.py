@@ -1,8 +1,9 @@
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.shortcuts import get_object_or_404
-from rest_framework import generics, permissions
+from rest_framework import generics, permissions, status
 from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.response import Response
 
 from auditlog.services import record_event
 from .models import School, SchoolMembership
@@ -32,6 +33,12 @@ class SchoolMemberAccessMixin:
 
 
 class SchoolMemberListCreateView(SchoolMemberAccessMixin, generics.ListCreateAPIView):
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return Response(SchoolMemberSerializer(self.created_membership).data, status=status.HTTP_201_CREATED)
+
     def get_queryset(self):
         self.get_requester_membership()
         return SchoolMembership.objects.filter(school=self.get_school()).select_related("user").order_by("user__username")
@@ -55,6 +62,7 @@ class SchoolMemberListCreateView(SchoolMemberAccessMixin, generics.ListCreateAPI
             password=data["password"],
         )
         membership = SchoolMembership.objects.create(school=self.get_school(), user=user, role=role)
+        self.created_membership = membership
         record_event(
             school=self.get_school(), actor=self.request.user, action="SCHOOL_MEMBER_CREATED",
             entity_type="SchoolMembership", entity_id=membership.pk,
