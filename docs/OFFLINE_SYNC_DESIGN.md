@@ -16,9 +16,10 @@ The first synchronisation release supports **draft capture only**. It must never
 
 Implemented in the current pilot:
 - Encrypted draft expense capture, pending online server validation and idempotent synchronisation.
+- Authenticated purchase-order draft synchronisation is now supported by the same allow-listed endpoint and idempotency receipt. It creates a DRAFT order with lines only; it does not submit, approve, commit funds or post a journal.
 
 Planned after the corresponding workflows and privacy controls are complete:
-- Draft purchase order capture now has an online model and approval workflow; offline purchase order capture remains planned only after its idempotent sync endpoint and conflict review are implemented.
+- Draft purchase-order capture and idempotent server synchronisation are implemented. Client-side encrypted queueing and visible purchase-order conflict controls remain to be completed before enabling the workflow in the UI.
 - Additional non-posting drafts where offline data exposure has been reviewed.
 - Non-sensitive interface preferences.
 
@@ -42,7 +43,7 @@ Remain online-only:
 ## Required server sync contract
 
 - Require a fresh authenticated session, CSRF validation, active school membership and the role required for that draft type.
-- The current expense-draft endpoint accepts one operation at a time and enforces a unique (school, user, idempotency_key) constraint so retries cannot create duplicates. Extend the same contract separately for each future draft resource.
+- The school-scoped sync endpoint accepts only the explicit expense and purchase-order draft schemas and enforces a unique (school, user, idempotency_key) receipt. The canonical hash includes resource type and payload; retries with identical data return the prior result, while key reuse with different data returns HTTP 409. The endpoint cannot submit/approve a purchase order or post any financial transaction.
 - Validate the entire payload on the server. Never trust client-supplied school IDs, account IDs, supplier IDs, financial period IDs or user IDs.
 - Re-check that all related records belong to the active school and that the financial period is open.
 - Use optimistic concurrency (base_revision / If-Match) for edits. A stale base revision must return a conflict containing the server version and a reason; never apply last-write-wins.
