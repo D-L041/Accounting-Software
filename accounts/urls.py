@@ -2,6 +2,7 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from .views import AcademicYearViewSet, ClassRoomViewSet, SchoolViewSet, StudentViewSet
+from .auth_views import CsrfView, CurrentUserView, LoginView, LogoutView
 
 router = DefaultRouter()
 router.register("schools", SchoolViewSet, basename="school")
@@ -16,10 +17,10 @@ school_patterns = [
 ]
 
 urlpatterns = [
-    path("auth/csrf/", __import__("accounts.auth_views", fromlist=["CsrfView"]).CsrfView.as_view(), name="auth-csrf"),
-    path("auth/login/", __import__("accounts.auth_views", fromlist=["LoginView"]).LoginView.as_view(), name="auth-login"),
-    path("auth/me/", __import__("accounts.auth_views", fromlist=["CurrentUserView"]).CurrentUserView.as_view(), name="auth-me"),
-    path("auth/logout/", __import__("accounts.auth_views", fromlist=["LogoutView"]).LogoutView.as_view(), name="auth-logout"),
+    path("auth/csrf/", CsrfView.as_view(), name="auth-csrf"),
+    path("auth/login/", LoginView.as_view(), name="auth-login"),
+    path("auth/me/", CurrentUserView.as_view(), name="auth-me"),
+    path("auth/logout/", LogoutView.as_view(), name="auth-logout"),
     path("", include(router.urls)),
     path("schools/<int:school_pk>/", include((school_patterns, "school-scoped"))),
 ]
