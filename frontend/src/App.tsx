@@ -93,6 +93,7 @@ export default function App() {
   const [reportPeriod,setReportPeriod] = useState("");
   const [reportType,setReportType] = useState("trial-balance");
   const [invoices,setInvoices] = useState<Row[]>([]);
+  const [c2bNotifications,setC2bNotifications] = useState<Row[]>([]);
   const [form,setForm] = useState<Record<string,string>>({});
   const [scheduleLines,setScheduleLines] = useState<{fee_item:string;amount:string}[]>([{fee_item:"",amount:""}]);
   const [newSchool,setNewSchool] = useState({name:"",code:"",address:"",phone:"",email:""});
@@ -156,6 +157,10 @@ export default function App() {
   }, [school,schoolBase,active]);
 
   useEffect(() => { if(user && school) void loadData(); }, [user,school,active,loadData]);
+  useEffect(() => {
+    if(active!=="Payments & Receipts" || !school) return;
+    api<Row[]>(`/api/daraja/schools/${school.id}/c2b/`).then(setC2bNotifications).catch(e=>setError(errorText(e)));
+  },[active,school]);
   useEffect(() => {
     if(active!=="Audit Log" || !school) return;
     api<Row[]>(`/api/schools/${school.id}/audit/`).then(setAuditRows).catch(e=>setError(errorText(e)));
@@ -284,6 +289,24 @@ export default function App() {
     } catch(e) { setError(errorText(e)); }
     finally { setBusy(false); }
   }
+  async function reconcileC2B(notification:Row) {
+    if(!school || !navigator.onLine) { setError("C2B reconciliation requires an active connection."); return; }
+    const invoice=invoices.find(x=>String(x.invoice_number).toUpperCase()===String(notification.bill_reference).toUpperCase());
+    if(!invoice) { setError("No exact invoice match exists in this school. Refer this transaction for manual investigation."); return; }
+    const confirmed=window.confirm("Have you independently matched M-Pesa transaction "+notification.transaction_id+" and amount "+money(notification.amount,school.currency)+" against the Safaricom statement, and confirmed invoice "+invoice.invoice_number+"? Only continue if the statement confirms this payment.");
+    if(!confirmed) return;
+    setBusy(true); clearMessages();
+    try {
+      await api(`/api/daraja/schools/${school.id}/c2b/${notification.id}/reconcile/`,{
+        method:"POST",body:JSON.stringify({invoice_id:invoice.id,confirm_statement_match:true}),
+      });
+      setSuccess("M-Pesa transaction "+notification.transaction_id+" reconciled and posted with receipt and ledger journal.");
+      const refreshed=await api<Row[]>(`/api/daraja/schools/${school.id}/c2b/`);
+      setC2bNotifications(refreshed); await loadData();
+    } catch(e) { setError(errorText(e)); }
+    finally { setBusy(false); }
+  }
+
   async function createSupplier(event:FormEvent) {
     event.preventDefault();
     await submitAction(schoolBase + "/expenses/suppliers/",{name:form.supplier_name,contact_person:form.contact_person||"",phone:form.supplier_phone||"",email:form.supplier_email||"",tax_pin:form.tax_pin||"",address:form.supplier_address||""},"Supplier saved.");
@@ -457,6 +480,13 @@ export default function App() {
         </form>}
 
 
+        {canWrite&&active==="Payments & Receipts"&&<section className="entry-panel">
+          <div className="panel-heading"><div><h2>M-Pesa Paybill reconciliation</h2><p>Review confirmed Paybill notifications and reconcile only after matching the Safaricom statement.</p></div><Landmark size={18}/></div>
+          <div className="notice"><ShieldCheck size={18}/><div><strong>Manual verification required</strong><span>Incoming C2B notifications are not posted automatically. Verify the transaction on the Safaricom statement before reconciling it.</span></div></div>
+          {c2bNotifications.length===0?<div className="table-empty">No matching C2B notifications are awaiting reconciliation.</div>:<div className="table-wrap"><table><thead><tr>{["Transaction","Account reference","Amount","Payer phone","Received","Status","Action"].map(x=><th key={x}>{x}</th>)}</tr></thead><tbody>
+            {c2bNotifications.map(item=><tr key={item.id}><td>{item.transaction_id}</td><td>{item.bill_reference}</td><td>{money(item.amount,school.currency)}</td><td>{item.msisdn||"—"}</td><td>{item.transaction_time||"—"}</td><td>{item.status}</td><td>{item.status!=="POSTED"&&<button className="small-action" disabled={busy||!isOnline} onClick={()=>void reconcileC2B(item)}>Verify statement & post</button>}{item.status==="POSTED"&&<span>{item.receipt_number||"Posted"}</span>}</td></tr>)}
+          </tbody></table></div>}
+        </section>}
         {canWrite&&active==="Expenses & Suppliers"&&<section className="entry-panel">
           <div className="panel-heading"><div><h2>Supplier bills & payables</h2><p>Record supplier invoices, route them for approval, post approved liabilities and track settlements.</p></div><Landmark size={18}/></div>
           <form onSubmit={createSupplierBill}>
