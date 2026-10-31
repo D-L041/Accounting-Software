@@ -136,3 +136,19 @@ class Student(models.Model):
 
     def __str__(self):
         return f"{self.admission_number} — {self.full_name}"
+
+
+class OfflineSyncReceipt(models.Model):
+    """Idempotency receipt for authenticated, offline-created expense drafts."""
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="offline_sync_receipts")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="offline_sync_receipts")
+    idempotency_key = models.UUIDField()
+    payload_hash = models.CharField(max_length=64)
+    expense = models.ForeignKey("expenses.Expense", null=True, blank=True, on_delete=models.SET_NULL, related_name="offline_sync_receipts")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["school", "user", "idempotency_key"], name="unique_offline_sync_operation"),
+        ]
+        indexes = [models.Index(fields=["school", "created_at"], name="offline_sync_school_time_idx")]
