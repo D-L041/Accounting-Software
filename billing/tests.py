@@ -7,7 +7,7 @@ from rest_framework.test import APIClient
 
 from accounts.models import AcademicYear, School, SchoolMembership, Student
 from auditlog.models import AuditEvent
-from ledger.models import Account, FinancialPeriod, JournalEntry
+from ledger.models import Account, FinancialPeriod, JournalEntry, JournalLine
 from .models import FeeItem, Invoice, Payment, SchoolBillingSettings
 
 
@@ -89,3 +89,27 @@ class BillingApiTests(TestCase):
         self.assertEqual(first.status_code, 201, first.data)
         self.assertEqual(second.status_code, 400)
         self.assertEqual(Payment.objects.filter(transaction_reference="MPESA-DUPLICATE").count(), 1)
+
+
+    def test_cashbook_shows_posted_cash_movements_only(self):
+        posted = JournalEntry.objects.create(
+            school=self.school, reference="CASH-001", description="Cash fee receipt",
+            entry_date="2026-02-04", period=self.period, created_by=self.user,
+        )
+        JournalLine.objects.create(entry=posted, account=self.cash, description="Cash received", debit=Decimal("2500.00"))
+        JournalLine.objects.create(entry=posted, account=self.ar, description="Receivable cleared", credit=Decimal("2500.00"))
+        posted.post()
+        draft = JournalEntry.objects.create(
+            school=self.school, reference="CASH-002", description="Unposted cash draft",
+            entry_date="2026-02-05", period=self.period, created_by=self.user,
+        )
+        JournalLine.objects.create(entry=draft, account=self.cash, debit=Decimal("900.00"))
+        JournalLine.objects.create(entry=draft, account=self.ar, credit=Decimal("900.00"))
+        response = self.client.get(
+            f"/api/schools/{self.school.pk}/ledger/reports/cashbook/?period={self.period.pk}"
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["total_receipts"], Decimal("2500.00"))
+        self.assertEqual(response.data["total_payments"], Decimal("0.00"))
+        self.assertEqual(len(response.data["transactions"]), 1)
+        self.assertFalse(response.data["opening_balance_included"])
