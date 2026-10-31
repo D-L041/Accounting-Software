@@ -69,6 +69,10 @@ class SchoolScopedViewSet(viewsets.ModelViewSet):
         self.check_write_role()
         serializer.save()
 
+    def perform_destroy(self, instance):
+        self.check_write_role()
+        instance.delete()
+
 
 class StudentViewSet(SchoolScopedViewSet):
     serializer_class = StudentSerializer
