@@ -212,16 +212,20 @@ def reconcile_c2b_notification(*, notification_id, school, user, invoice_id, con
         raise ValidationError("Your school role cannot reconcile M-Pesa payments.")
     if confirm_statement_match is not True:
         raise ValidationError("Confirm that the transaction has been independently matched to the Safaricom statement.")
-    notification = C2BNotification.objects.select_for_update(of=("self",)).select_related("matched_invoice").get(pk=notification_id)
+    notification = C2BNotification.objects.select_for_update(of=("self",)).select_related("matched_invoice").filter(pk=notification_id).first()
+    if notification is None:
+        raise ValidationError("The M-Pesa notification was not found.")
     if notification.status == C2BNotification.Status.POSTED:
         if notification.matched_invoice_id == invoice_id and notification.matched_invoice.school_id == school.id:
             return notification
         raise ValidationError("This M-Pesa transaction has already been reconciled to another school or invoice.")
     if notification.payment_id:
         raise ValidationError("This M-Pesa transaction is already linked to a payment.")
-    invoice = Invoice.objects.select_for_update().select_related("student", "period").get(
+    invoice = Invoice.objects.select_for_update().select_related("student", "period").filter(
         pk=invoice_id, school=school
-    )
+    ).first()
+    if invoice is None:
+        raise ValidationError("The invoice was not found in this school.")
     if invoice.invoice_number.strip().upper() != notification.bill_reference.strip().upper():
         raise ValidationError("The M-Pesa account reference does not exactly match this invoice number.")
     if Invoice.objects.filter(invoice_number__iexact=invoice.invoice_number).exclude(school=school).exists():
