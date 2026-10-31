@@ -25,7 +25,9 @@ A green frontend build or successful deployment alone is not sufficient for fina
 - [ ] Complete CRUD audit coverage, configurable approval limits and procurement approval workflows.
 - [x] Downloadable PDF receipts with school-level access checks.
 - [x] Credit note and payment refund API workflows implemented and tested, including invoice balance adjustments and ledger reversals.
-- [ ] Daraja STK Push initiation, persisted attempts, STK callback capture, STK Query verification and duplicate-safe posting scaffold implemented; sandbox end-to-end tests, C2B transaction verification/automatic posting, callback hardening and production reconciliation remain outstanding.
+- [x] Daraja STK Push initiation, persisted attempts, STK callback capture, STK Query verification and duplicate-safe ledger posting implemented.
+- [x] C2B callback capture and deduplication, school-scoped review queue, exact invoice-reference matching, independent Safaricom statement confirmation, duplicate transaction protection and normal receipt/ledger posting implemented; automated reconciliation tests added.
+- [ ] Daraja sandbox end-to-end tests, Safaricom transaction-status API verification for unattended C2B posting, school-specific paybill/shortcode mapping, callback hardening and production onboarding remain outstanding.
 - [ ] Offline data queue, sync and conflict resolution implemented and tested. The current frontend explicitly disables financial transactions offline.
 - [x] Additional tenant-isolation tests added for bank statements, supplier bills and payroll employee lists.
 - [ ] Independent security review and complete tenant-isolation/security test programme passed.
