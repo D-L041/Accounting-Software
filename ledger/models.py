@@ -123,6 +123,13 @@ class JournalEntry(models.Model):
             entry.posted = True
             entry.posted_at = timezone.now()
             entry.save(update_fields=["posted", "posted_at"])
+            from auditlog.services import record_event
+            record_event(
+                school=entry.school, actor=entry.created_by, action="JOURNAL_POSTED",
+                entity_type="JournalEntry", entity_id=entry.pk,
+                summary=f"Posted journal {entry.reference}",
+                metadata={"reference": entry.reference, "period": entry.period.name, "entry_date": entry.entry_date.isoformat()},
+            )
             self.refresh_from_db()
 
     def save(self, *args, **kwargs):
