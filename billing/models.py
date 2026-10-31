@@ -35,6 +35,7 @@ class SchoolBillingSettings(models.Model):
     receivables_account = models.ForeignKey(Account, on_delete=models.PROTECT, related_name="billing_receivables_settings")
     cash_account = models.ForeignKey(Account, on_delete=models.PROTECT, related_name="billing_cash_settings")
     bank_account = models.ForeignKey(Account, on_delete=models.PROTECT, related_name="billing_bank_settings")
+    mpesa_account = models.ForeignKey(Account, on_delete=models.PROTECT, related_name="billing_mpesa_settings")
     invoice_prefix = models.CharField(max_length=12, default="INV")
     receipt_prefix = models.CharField(max_length=12, default="RCT")
 
@@ -44,6 +45,7 @@ class SchoolBillingSettings(models.Model):
             (self.receivables_account, Account.Category.ASSET, "receivables_account"),
             (self.cash_account, Account.Category.ASSET, "cash_account"),
             (self.bank_account, Account.Category.ASSET, "bank_account"),
+            (self.mpesa_account, Account.Category.ASSET, "mpesa_account"),
         ]
         errors = {}
         for account, category, field in expected:
