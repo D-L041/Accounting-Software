@@ -4,8 +4,7 @@ import os
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime
-from decimal import Decimal
+from decimal import Decimal, ROUND_DOWN
 
 from django.core.exceptions import ImproperlyConfigured, ValidationError
 from django.db import IntegrityError
@@ -14,7 +13,6 @@ from django.utils import timezone
 
 from billing.models import Invoice
 from billing.services import record_payment
-from accounts.models import SchoolMembership
 from .models import StkPushAttempt
 
 
@@ -81,7 +79,7 @@ def initiate_stk_push(*, invoice, user, phone_number):
     if invoice.status not in {Invoice.Status.ISSUED, Invoice.Status.PART_PAID} or invoice.balance <= 0:
         raise ValidationError("Only an issued invoice with an outstanding balance can receive an STK Push.")
     phone = normalize_phone(phone_number)
-    amount = invoice.balance.quantize(Decimal("1"))
+    amount = invoice.balance.quantize(Decimal("1"), rounding=ROUND_DOWN)
     if amount < 1:
         raise ValidationError("The outstanding balance must be at least KES 1 for an STK Push.")
     attempt = StkPushAttempt.objects.create(
@@ -156,8 +154,14 @@ def process_stk_callback(payload):
     metadata = callback.get("CallbackMetadata", {}).get("Item", [])
     values = {item.get("Name"): item.get("Value") for item in metadata if isinstance(item, dict)}
     receipt = str(values.get("MpesaReceiptNumber", "")).strip().upper()
-    received_amount = Decimal(str(values.get("Amount", "0"))).quantize(Decimal("0.01"))
-    phone = normalize_phone(values.get("PhoneNumber", attempt.phone_number))
+    try:
+        received_amount = Decimal(str(values.get("Amount", "0"))).quantize(Decimal("0.01"))
+        phone = normalize_phone(values.get("PhoneNumber", attempt.phone_number))
+    except (ValidationError, ArithmeticError, ValueError):
+        attempt.status = StkPushAttempt.Status.REVIEW
+        attempt.result_description = "Callback metadata was invalid; manual verification required."
+        attempt.save(update_fields=["status", "result_description", "updated_at"])
+        return "invalid_metadata"
     if not receipt or received_amount != attempt.amount or phone != attempt.phone_number:
         attempt.status = StkPushAttempt.Status.REVIEW
         attempt.result_description = "Callback amount, receipt or payer phone did not match the STK request."
