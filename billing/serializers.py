@@ -5,7 +5,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
 from accounts.models import Student
-from ledger.models import Account
+from ledger.models import Account, FinancialPeriod
 from .models import CreditNote, CreditNoteLine, FeeItem, FeeSchedule, FeeScheduleLine, Invoice, InvoiceLine, Payment, PaymentRefund, SchoolBillingSettings
 
 
