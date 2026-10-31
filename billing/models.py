@@ -26,6 +26,10 @@ class FeeItem(models.Model):
             if self.income_account.school_id != self.school_id or self.income_account.category != Account.Category.INCOME:
                 raise ValidationError({"income_account": "Select an income account belonging to this school."})
 
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
     def __str__(self):
         return f"{self.code} — {self.name}"
 
