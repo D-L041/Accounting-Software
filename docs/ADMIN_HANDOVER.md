@@ -18,12 +18,12 @@ Required:
 - DEBUG=False
 - SECRET_KEY — long, random production-only secret.
 - DATABASE_URL — managed PostgreSQL connection string.
-- ALLOWED_HOSTS — exact API hostnames, no wildcard.
-- CORS_ALLOWED_ORIGINS — exact frontend origin(s), no wildcard.
-- CSRF_TRUSTED_ORIGINS — exact HTTPS frontend origin(s).
+- ALLOWED_HOSTS — exact Render hostname (for the initial Blueprint: `precious-schoolbooks.onrender.com`), no wildcard.
+- DATABASE_URL — Render-managed PostgreSQL connection string.
+- Keep the React frontend and Django API on the same origin for the initial session/CSRF authentication model. The current Render Blueprint serves both from one service; CORS/CSRF origin lists are not required for same-origin traffic.
 
 Daraja variables only after Safaricom onboarding:
-- DARAJA_ENV=production
+- DARAJA_ENV=sandbox for acceptance testing; change to production only after Safaricom onboarding and release approval.
 - DARAJA_CONSUMER_KEY
 - DARAJA_CONSUMER_SECRET
 - DARAJA_SHORTCODE
@@ -35,15 +35,14 @@ Keep all secrets in the host's protected environment configuration. Use sandbox 
 
 ## 3. Deployment sequence
 
-1. Confirm the approved commit and passing CI checks on the exact commit to deploy.
-2. Provision managed PostgreSQL, enable backups/PITR and complete an isolated restore drill.
-3. Configure the API environment and run python manage.py check --deploy.
-4. Apply database migrations in a controlled release window.
-5. Run python manage.py collectstatic --noinput.
-6. Start the API using the reviewed production process configuration (for example Gunicorn behind HTTPS).
-7. Provision the frontend host and set the API base URL using the documented frontend environment variable.
-8. Configure exact CORS/CSRF origins, HTTPS, DNS and monitoring.
-9. Run production smoke tests using test data only before loading school records.
+1. Review `docs/RENDER_DEPLOYMENT.md` and the root `render.yaml`; confirm the resource sizes and monthly charges before creating anything.
+2. Confirm the approved commit and passing CI checks on the exact commit to deploy.
+3. Connect the GitHub repository to Render and create the Blueprint only after the repository owner approves the billing and service creation.
+4. Provision managed PostgreSQL in the same Frankfurt region; configure backup retention and complete an isolated restore drill.
+5. Configure the generated secret, exact `ALLOWED_HOSTS`, database URL and Daraja sandbox values in Render's protected environment settings.
+6. Run `python manage.py check --deploy`, apply migrations through the reviewed pre-deploy command and verify the health endpoint.
+7. Confirm the React frontend and Django API are served from the same HTTPS origin and that login, session cookies and CSRF protection work.
+8. Keep automatic deploys disabled until the production release gate is approved; run smoke tests using synthetic data only.
 
 ## 4. Initial school setup
 
@@ -67,4 +66,4 @@ Keep all secrets in the host's protected environment configuration. Use sandbox 
 
 ## 6. Explicit limitations at current handover stage
 
-The repository is not yet a production deployment. The connected Vercel account context returned no accessible teams/projects, and no API host, managed PostgreSQL instance, domain or live Safaricom credentials have been provisioned through this workflow. Offline sync, complete payroll claims/exports, purchase orders and independent security/restore/acceptance sign-offs remain release blockers. Do not hand over as production-ready until the release checklist is complete.
+The repository is not yet a production deployment. A Render same-origin pilot Blueprint is prepared in `render.yaml`, but no Render service, managed PostgreSQL instance or domain has been provisioned, and no Safaricom sandbox credentials have been configured. The current offline outbox covers expense drafts only; full offline operation, complete payroll claims/exports, purchase orders, bank-feed integrations and independent security/restore/acceptance sign-offs remain release blockers. Do not hand over as production-ready until the release checklist is complete.
