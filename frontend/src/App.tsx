@@ -154,6 +154,7 @@ export default function App() {
     try { await logout(); } finally { setUser(null); setSchool(null); setRows([]); }
   }
   async function submitAction(path:string, payload:Row, message:string) {
+    if(!navigator.onLine) { setError("You are offline. Transactions are disabled until the secure connection is restored."); return; }
     setBusy(true); clearMessages();
     try { await api(path,{method:"POST",body:JSON.stringify(payload)}); setSuccess(message); setForm({}); await loadData(); }
     catch(e) { setError(errorText(e)); }
@@ -200,7 +201,7 @@ export default function App() {
     await submitAction(`${schoolBase}/expenses/categories/`,{code:form.expense_code,name:form.expense_name,expense_account:Number(form.expense_account)},"Expense category created.");
   }
   async function saveBillingSettings(event:FormEvent) {
-    event.preventDefault(); setBusy(true); clearMessages();
+    event.preventDefault(); if(!navigator.onLine) { setError("You are offline. Billing settings cannot be saved."); return; } setBusy(true); clearMessages();
     const payload={receivables_account:Number(form.receivables_account),cash_account:Number(form.cash_account),bank_account:Number(form.bank_account),mpesa_account:Number(form.mpesa_account),invoice_prefix:form.invoice_prefix||"INV",receipt_prefix:form.receipt_prefix||"RCT"};
     try {
       if(billingSettings?.id) await api(`${schoolBase}/billing/settings/${billingSettings.id}/`,{method:"PATCH",body:JSON.stringify(payload)});
@@ -209,6 +210,7 @@ export default function App() {
     } catch(e) { setError(errorText(e)); } finally { setBusy(false); }
   }
   async function issueInvoice(id:number) {
+    if(!navigator.onLine) { setError("You are offline. Invoice posting is disabled until connection is restored."); return; }
     setBusy(true); clearMessages();
     try { await api(`${schoolBase}/billing/invoices/${id}/issue/`,{method:"POST",body:JSON.stringify({})}); setSuccess("Invoice issued and posted to the ledger."); await loadData(); }
     catch(e) { setError(errorText(e)); } finally { setBusy(false); }
@@ -226,6 +228,7 @@ export default function App() {
     await submitAction(`${schoolBase}/expenses/`,{supplier:form.supplier?Number(form.supplier):null,category:Number(form.category),period:Number(form.period),expense_date:form.expense_date||today,description:form.description,amount:form.amount,payment_method:form.payment_method||"MPESA",reference:form.reference||""},"Draft expense recorded.");
   }
   async function postExpense(id:number) {
+    if(!navigator.onLine) { setError("You are offline. Expense posting is disabled until connection is restored."); return; }
     setBusy(true); clearMessages();
     try { await api(`${schoolBase}/expenses/${id}/post/`,{method:"POST",body:JSON.stringify({})}); setSuccess("Expense posted to the ledger."); await loadData(); }
     catch(e) { setError(errorText(e)); } finally { setBusy(false); }
