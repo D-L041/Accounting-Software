@@ -14,7 +14,7 @@ import PayrollPanel from "./PayrollPanel";
 import ProcurementPanel from "./ProcurementPanel";
 import BudgetPanel from "./BudgetPanel";
 import { schoolToday } from "./formatters";
-import { listExpenseDrafts, queueExpenseDraft, syncExpenseDrafts, type OfflineExpensePayload } from "./offlineOutbox";
+import { discardExpenseDraft, listExpenseDrafts, queueExpenseDraft, syncExpenseDrafts, type OfflineExpensePayload } from "./offlineOutbox";
 
 type Row = Record<string, any>;
 const nav = [
@@ -207,6 +207,16 @@ export default function App() {
     api<Row>("/api/schools/" + school.id + "/ledger/reports/" + route + "/?period=" + periodId)
       .then(setTrialBalance).catch(e=>setError(errorText(e)));
   },[active,school,periods,reportPeriod,reportType]);
+
+  async function discardOfflineItem(idempotencyKey:string) {
+    if (!user || !school) return;
+    if (!window.confirm("Permanently discard this unsynchronised expense draft from this device?")) return;
+    try {
+      await discardExpenseDraft(user.id, school.id, idempotencyKey);
+      await refreshOfflineDrafts();
+      setSuccess("Offline expense draft discarded from this device.");
+    } catch (e) { setError(errorText(e)); }
+  }
 
   async function handleLogin(username:string,password:string) {
     const response=await login(username,password);
@@ -478,7 +488,9 @@ export default function App() {
       <header><button className="icon-btn mobile" onClick={()=>setMenu(!menu)}><Menu/></button><div className="crumb">Precious SchoolBooks <span>/</span> {active}</div><div className="head-actions">{user.schools.length>1&&<select className="school-switcher" value={school.id} onChange={e=>setSchool(user.schools.find(x=>x.id===Number(e.target.value))||null)}>{user.schools.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select>}<button className="icon-btn" title="Refresh" onClick={()=>void loadData()}><RefreshCw/></button><div className="avatar">{user.name.slice(0,2).toUpperCase()}</div><div className="user-label">{user.name}<small>{school.role}</small></div><button className="icon-btn" title="Sign out" onClick={handleLogout}><LogOut/></button></div></header>
       <section className="content">
         <div className="welcome"><div><div className="eyebrow">SCHOOL FINANCE WORKSPACE</div><h1>{heading}</h1><p>{school.name} · Kenyan Shillings (KES)</p></div><div className="period">Signed in as <strong>{user.username}</strong></div></div>
-        {!isOnline&&<div className="error-banner"><AlertCircle size={16}/>Offline mode: the application shell is available, but financial records are not cached and transaction entry/posting is disabled until you reconnect.</div>}
+         {!isOnline&&<div className="error-banner"><AlertCircle size={16}/>Offline mode: previously loaded reference lists remain available in this session. You can save encrypted expense drafts; student records, payments, payroll and ledger postings remain online-only.</div>}
+         {offlineDrafts.length>0&&<div className="notice"><ClipboardList size={18}/><div><strong>{offlineDrafts.length} offline expense draft(s) waiting</strong><span>{offlineDrafts.filter(x=>x.state==="needs_attention").length} need review. Drafts are not posted until reviewed online.</span></div><button className="small-action" disabled={!isOnline} onClick={()=>void syncOfflineQueue()}>Sync now</button></div>}
+         {offlineDrafts.length>0&&<div className="entry-panel"><div className="panel-heading"><div><h2>Offline draft queue</h2><p>These records are encrypted on this device and have not affected the ledger.</p></div></div><div className="table-wrap"><table><thead><tr><th>Captured</th><th>Status</th><th>Details</th><th>Action</th></tr></thead><tbody>{offlineDrafts.map(item=><tr key={item.idempotencyKey}><td>{new Date(item.createdAt).toLocaleString()}</td><td>{item.state==="needs_attention"?"Needs review":"Waiting to sync"}</td><td>{item.lastError||"Expense draft — pending server validation"}</td><td><button className="small-action" onClick={()=>void discardOfflineItem(item.idempotencyKey)}>Discard</button></td></tr>)}</tbody></table></div></div>}
         {error&&<div className="error-banner"><AlertCircle size={16}/>{error}</div>}
         {success&&<div className="success-banner"><CheckCircle2 size={16}/>{success}</div>}
         {active==="Overview"&&<div className="metric-grid">
