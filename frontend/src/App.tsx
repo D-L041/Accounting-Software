@@ -102,6 +102,7 @@ export default function App() {
         api<Row[]>(`${schoolBase}/expenses/`),
         api<Row[]>(`${schoolBase}/expenses/categories/`),
         api<Row[]>(`${schoolBase}/expenses/suppliers/`),
+        api<Row[]>(`${schoolBase}/billing/settings/`),
       ]);
       setStudents(studentRows); setYears(yearRows); setPeriods(periodRows); setAccounts(accountRows);
       setFeeItems(feeRows); setInvoices(invoiceRows); setCategories(categoryRows); setSuppliers(supplierRows); setBillingSettings(billingRows[0] || null);
