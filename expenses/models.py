@@ -252,3 +252,54 @@ class SupplierBillPayment(models.Model):
     def delete(self, *args, **kwargs):
         raise ValidationError("Supplier bill payments cannot be deleted; use an approved reversal.")
 
+
+
+class ExpenseBudget(models.Model):
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="expense_budgets")
+    period = models.ForeignKey(FinancialPeriod, on_delete=models.PROTECT, related_name="expense_budgets")
+    category = models.ForeignKey(ExpenseCategory, on_delete=models.PROTECT, related_name="budgets")
+    budget_amount = models.DecimalField(max_digits=14, decimal_places=2)
+    notes = models.CharField(max_length=255, blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["category__name"]
+        constraints = [
+            models.UniqueConstraint(fields=["school", "period", "category"], name="unique_expense_budget_school_period_category"),
+            models.CheckConstraint(condition=Q(budget_amount__gte=0), name="expense_budget_nonnegative"),
+        ]
+
+    def clean(self):
+        super().clean()
+        errors = {}
+        if self.period_id and self.period.school_id != self.school_id:
+            errors["period"] = "Financial period must belong to this school."
+        if self.category_id and self.category.school_id != self.school_id:
+            errors["category"] = "Expense category must belong to this school."
+        if self.budget_amount is not None and self.budget_amount < 0:
+            errors["budget_amount"] = "Budget amount cannot be negative."
+        if errors:
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    @property
+    def actual_amount(self):
+        from django.db.models import Sum
+        direct = Expense.objects.filter(
+            school=self.school, period=self.period, category=self.category,
+            status=Expense.Status.POSTED,
+        ).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+        bills = SupplierBill.objects.filter(
+            school=self.school, period=self.period, category=self.category,
+            status__in=[SupplierBill.Status.POSTED, SupplierBill.Status.PART_PAID, SupplierBill.Status.PAID],
+        ).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+        return direct + bills
+
+    @property
+    def variance(self):
+        return self.budget_amount - self.actual_amount
