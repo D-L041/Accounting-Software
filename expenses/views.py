@@ -6,6 +6,7 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 
 from accounts.models import School, SchoolMembership
+from auditlog.services import record_event
 from .models import Expense, ExpenseCategory, Supplier
 from .serializers import ExpenseCategorySerializer, ExpenseSerializer, SupplierSerializer
 from .services import post_expense
@@ -32,11 +33,13 @@ class SchoolExpensesViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         self.check_write_role()
-        serializer.save(school=self.get_school())
+        instance = serializer.save(school=self.get_school())
+        record_event(school=self.get_school(), actor=self.request.user, action=f"{instance.__class__.__name__.upper()}_CREATED", entity_type=instance.__class__.__name__, entity_id=instance.pk, summary=f"Created {instance.__class__.__name__}")
 
     def perform_update(self, serializer):
         self.check_write_role()
-        serializer.save()
+        instance = serializer.save()
+        record_event(school=self.get_school(), actor=self.request.user, action=f"{instance.__class__.__name__.upper()}_UPDATED", entity_type=instance.__class__.__name__, entity_id=instance.pk, summary=f"Updated {instance.__class__.__name__}")
 
 
 class SupplierViewSet(SchoolExpensesViewSet):
