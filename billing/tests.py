@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from accounts.models import AcademicYear, School, SchoolMembership, Student
+from accounts.models import AcademicYear, ClassRoom, School, SchoolMembership, Student
 from auditlog.models import AuditEvent
 from ledger.models import Account, FinancialPeriod, JournalEntry, JournalLine
 from .models import FeeItem, Invoice, Payment, SchoolBillingSettings
@@ -113,3 +113,49 @@ class BillingApiTests(TestCase):
         self.assertEqual(response.data["total_payments"], Decimal("0.00"))
         self.assertEqual(len(response.data["transactions"]), 1)
         self.assertFalse(response.data["opening_balance_included"])
+
+
+    def test_class_term_fee_schedule_generates_draft_invoices_idempotently(self):
+        classroom = ClassRoom.objects.create(
+            school=self.school, academic_year=self.year, name="Grade 4", stream="A"
+        )
+        first = Student.objects.create(
+            school=self.school, classroom=classroom, admission_number="SS002",
+            first_name="Brian", last_name="Learner", admission_date="2026-01-05",
+        )
+        second = Student.objects.create(
+            school=self.school, classroom=classroom, admission_number="SS003",
+            first_name="Amina", last_name="Learner", admission_date="2026-01-05",
+        )
+        payload = {
+            "academic_year": self.year.pk,
+            "classroom": classroom.pk,
+            "period": self.period.pk,
+            "term_name": "Term 2",
+            "invoice_date": "2026-05-01",
+            "due_date": "2026-05-15",
+            "lines": [{"fee_item": self.fee.pk, "amount": "15000.00"}],
+        }
+        created = self.client.post(
+            f"/api/schools/{self.school.pk}/billing/fee-schedules/", payload, format="json"
+        )
+        self.assertEqual(created.status_code, 201, created.data)
+        generated = self.client.post(
+            f"/api/schools/{self.school.pk}/billing/fee-schedules/{created.data['id']}/generate-invoices/",
+            {}, format="json",
+        )
+        self.assertEqual(generated.status_code, 200, generated.data)
+        self.assertEqual(generated.data["generated_count"], 2)
+        invoices = Invoice.objects.filter(fee_schedule_id=created.data["id"]).order_by("student_id")
+        self.assertEqual(invoices.count(), 2)
+        self.assertEqual({invoice.student_id for invoice in invoices}, {first.pk, second.pk})
+        self.assertTrue(all(invoice.status == Invoice.Status.DRAFT for invoice in invoices))
+        self.assertTrue(all(invoice.total_amount == Decimal("15000.00") for invoice in invoices))
+        repeated = self.client.post(
+            f"/api/schools/{self.school.pk}/billing/fee-schedules/{created.data['id']}/generate-invoices/",
+            {}, format="json",
+        )
+        self.assertEqual(repeated.status_code, 200, repeated.data)
+        self.assertEqual(repeated.data["generated_count"], 0)
+        self.assertEqual(repeated.data["skipped_existing_count"], 2)
+        self.assertEqual(Invoice.objects.filter(fee_schedule_id=created.data["id"]).count(), 2)
