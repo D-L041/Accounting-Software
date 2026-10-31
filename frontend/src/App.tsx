@@ -75,6 +75,7 @@ export default function App() {
   const [accounts,setAccounts] = useState<Row[]>([]);
   const [categories,setCategories] = useState<Row[]>([]);
   const [suppliers,setSuppliers] = useState<Row[]>([]);
+  const [supplierBills,setSupplierBills] = useState<Row[]>([]);
   const [billingSettings,setBillingSettings] = useState<Row|null>(null);
   const [trialBalance,setTrialBalance] = useState<Row|null>(null);
   const [auditRows,setAuditRows] = useState<Row[]>([]);
@@ -113,7 +114,7 @@ export default function App() {
     if (!school) return;
     setLoading(true); setError("");
     try {
-      const [studentRows, classroomRows, yearRows, periodRows, accountRows, feeRows, scheduleRows, invoiceRows, paymentRows, expenseRows, categoryRows, supplierRows, billingRows] = await Promise.all([
+      const [studentRows, classroomRows, yearRows, periodRows, accountRows, feeRows, scheduleRows, invoiceRows, paymentRows, expenseRows, categoryRows, supplierRows, billRows, billingRows] = await Promise.all([
         api<Row[]>(`${schoolBase}/students/`),
         api<Row[]>(`${schoolBase}/classrooms/`),
         api<Row[]>(`${schoolBase}/academic-years/`),
@@ -126,10 +127,11 @@ export default function App() {
         api<Row[]>(`${schoolBase}/expenses/`),
         api<Row[]>(`${schoolBase}/expenses/categories/`),
         api<Row[]>(`${schoolBase}/expenses/suppliers/`),
+        api<Row[]>(`${schoolBase}/expenses/bills/`),
         api<Row[]>(`${schoolBase}/billing/settings/`),
       ]);
       setStudents(studentRows); setClassrooms(classroomRows); setFeeSchedules(scheduleRows); setYears(yearRows); setPeriods(periodRows); setAccounts(accountRows);
-      setFeeItems(feeRows); setInvoices(invoiceRows); setCategories(categoryRows); setSuppliers(supplierRows); setBillingSettings(billingRows[0] || null);
+      setFeeItems(feeRows); setInvoices(invoiceRows); setCategories(categoryRows); setSuppliers(supplierRows); setSupplierBills(billRows); setBillingSettings(billingRows[0] || null);
       if (active==="Overview") { const activity: Row[] = [...invoiceRows.slice(0,5).map(x=>({...x,record_type:"Invoice"})), ...paymentRows.slice(0,5).map(x=>({...x,record_type:"Receipt"})), ...expenseRows.slice(0,5).map(x=>({...x,record_type:"Expense"}))]; setRows(activity.sort((a,b)=>String(b.created_at||b.invoice_date||b.payment_date||b.expense_date).localeCompare(String(a.created_at||a.invoice_date||a.payment_date||a.expense_date))).slice(0,8)); }
       else if (active==="Students & Classes") setRows(studentRows);
       else if (active==="Fees & Invoices") setRows(invoiceRows);
@@ -271,6 +273,37 @@ export default function App() {
     catch(e) { setError(errorText(e)); } finally { setBusy(false); }
   }
 
+
+
+  async function createSupplierBill(event:FormEvent) {
+    event.preventDefault();
+    await submitAction(schoolBase + "/expenses/bills/", {
+      supplier:Number(form.bill_supplier), category:Number(form.bill_category),
+      period:Number(form.bill_period), payable_account:Number(form.payable_account),
+      supplier_invoice_number:form.supplier_invoice_number,
+      bill_date:form.bill_date||today, due_date:form.bill_due_date||today,
+      description:form.bill_description, amount:form.bill_amount,
+    },"Supplier bill saved as draft.");
+  }
+  async function supplierBillAction(id:number, action:"submit"|"approve"|"post", message:string) {
+    if(!navigator.onLine) { setError("You are offline. Supplier bill workflow actions require a secure connection."); return; }
+    setBusy(true); clearMessages();
+    try {
+      await api(schoolBase + "/expenses/bills/" + id + "/" + action + "/",{method:"POST",body:JSON.stringify({})});
+      setSuccess(message); await loadData();
+    } catch(e) { setError(errorText(e)); } finally { setBusy(false); }
+  }
+  async function paySupplierBill(event:FormEvent) {
+    event.preventDefault();
+    const id=Number(form.pay_bill_id);
+    await submitAction(schoolBase + "/expenses/bills/" + id + "/payments/",{
+      payment_date:form.bill_payment_date||today, amount:form.bill_payment_amount,
+      payment_method:form.bill_payment_method||"MPESA",
+      payment_account:Number(form.bill_payment_account), period:Number(form.bill_payment_period),
+      reference:form.bill_payment_reference||"",
+    },"Supplier bill payment recorded.");
+  }
+
   const totals = useMemo(()=>({
     outstanding: invoices.filter(x=>x.status!=="PAID"&&x.status!=="DRAFT"&&x.status!=="VOID").reduce((n,x)=>n+Number(x.balance||0),0),
     invoiced: invoices.reduce((n,x)=>n+Number(x.total_amount||0),0),
@@ -343,6 +376,52 @@ export default function App() {
         </div>}
         {canWrite&&active==="Fees & Invoices"&&<form className="entry-panel" onSubmit={createInvoice}><div className="panel-heading"><div><h2>Create fee invoice</h2><p>Create a draft, review it, then issue it to the ledger.</p></div><Plus size={18}/></div><div className="form-grid"><label>Student<select required value={form.student||""} onChange={e=>setField("student",e.target.value)}><option value="">Select student</option>{students.map(x=><option value={x.id} key={x.id}>{x.admission_number} — {x.full_name}</option>)}</select></label><label>Academic year<select required value={form.academic_year||""} onChange={e=>setField("academic_year",e.target.value)}><option value="">Select year</option>{years.map(x=><option value={x.id} key={x.id}>{x.name}</option>)}</select></label><label>Financial period<select required value={form.period||""} onChange={e=>setField("period",e.target.value)}><option value="">Select period</option>{periods.filter(x=>!x.is_locked).map(x=><option value={x.id} key={x.id}>{x.name}</option>)}</select></label><label>Fee item<select required value={form.fee_item||""} onChange={e=>setField("fee_item",e.target.value)}><option value="">Select fee item</option>{feeItems.filter(x=>x.is_active).map(x=><option value={x.id} key={x.id}>{x.name}</option>)}</select></label><label>Amount (KES)<input type="number" min="0" step="0.01" required value={form.unit_amount||""} onChange={e=>setField("unit_amount",e.target.value)}/></label><label>Invoice date<input type="date" value={form.invoice_date||today} onChange={e=>setField("invoice_date",e.target.value)}/></label><label>Due date<input type="date" value={form.due_date||today} onChange={e=>setField("due_date",e.target.value)}/></label><label>Description<input value={form.description||""} onChange={e=>setField("description",e.target.value)}/></label></div><button className="primary" disabled={busy||!students.length||!years.length||!periods.length||!feeItems.length}>Create draft invoice</button>{(!years.length||!periods.length||!feeItems.length)&&<small className="muted">Setup required: add an academic year, financial period, chart of accounts, billing settings and fee items before invoicing.</small>}</form>}
         {canWrite&&active==="Payments & Receipts"&&<form className="entry-panel" onSubmit={createPayment}><div className="panel-heading"><div><h2>Record fee payment</h2><p>Allocate a receipt to an issued student invoice.</p></div><Plus size={18}/></div><div className="form-grid"><label>Student<select required value={form.student||""} onChange={e=>{setField("student",e.target.value);setField("invoice_id","");}}><option value="">Select student</option>{students.map(x=><option value={x.id} key={x.id}>{x.admission_number} — {x.full_name}</option>)}</select></label><label>Invoice<select required value={form.invoice_id||""} onChange={e=>setField("invoice_id",e.target.value)}><option value="">Select invoice</option>{invoices.filter(x=>String(x.student)===form.student&&["ISSUED","PART_PAID"].includes(x.status)).map(x=><option value={x.id} key={x.id}>{x.invoice_number} · Balance {money(x.balance,school.currency)}</option>)}</select></label><label>Amount received<input required type="number" min="0.01" step="0.01" value={form.amount||""} onChange={e=>setField("amount",e.target.value)}/></label><label>Payment method<select value={form.method||"MPESA"} onChange={e=>setField("method",e.target.value)}><option value="MPESA">M-Pesa</option><option value="CASH">Cash</option><option value="BANK">Bank</option></select></label><label>Payment date<input type="date" value={form.payment_date||today} onChange={e=>setField("payment_date",e.target.value)}/></label><label>M-Pesa / bank reference<input value={form.transaction_reference||""} onChange={e=>setField("transaction_reference",e.target.value)}/></label></div><button className="primary" disabled={busy||!form.invoice_id}>Record payment and issue receipt</button></form>}
+
+
+        {canWrite&&active==="Expenses & Suppliers"&&<section className="entry-panel">
+          <div className="panel-heading"><div><h2>Supplier bills & payables</h2><p>Record supplier invoices, route them for approval, post approved liabilities and track settlements.</p></div><Landmark size={18}/></div>
+          <form onSubmit={createSupplierBill}>
+            <div className="form-grid">
+              <label>Supplier<select required value={form.bill_supplier||""} onChange={e=>setField("bill_supplier",e.target.value)}><option value="">Select supplier</option>{suppliers.filter(x=>x.is_active).map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
+              <label>Expense category<select required value={form.bill_category||""} onChange={e=>setField("bill_category",e.target.value)}><option value="">Select category</option>{categories.filter(x=>x.is_active).map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
+              <label>Financial period<select required value={form.bill_period||""} onChange={e=>setField("bill_period",e.target.value)}><option value="">Select period</option>{periods.filter(x=>!x.is_locked).map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
+              <label>Accounts payable ledger<select required value={form.payable_account||""} onChange={e=>setField("payable_account",e.target.value)}><option value="">Select liability account</option>{accounts.filter(x=>x.category==="LIABILITY"&&x.is_active).map(x=><option key={x.id} value={x.id}>{x.code} — {x.name}</option>)}</select></label>
+              <label>Supplier invoice number<input required value={form.supplier_invoice_number||""} onChange={e=>setField("supplier_invoice_number",e.target.value)}/></label>
+              <label>Bill date<input required type="date" value={form.bill_date||today} onChange={e=>setField("bill_date",e.target.value)}/></label>
+              <label>Due date<input required type="date" value={form.bill_due_date||today} onChange={e=>setField("bill_due_date",e.target.value)}/></label>
+              <label>Amount (KES)<input required type="number" min="0.01" step="0.01" value={form.bill_amount||""} onChange={e=>setField("bill_amount",e.target.value)}/></label>
+              <label>Description<input required value={form.bill_description||""} onChange={e=>setField("bill_description",e.target.value)}/></label>
+            </div>
+            <button className="primary" disabled={busy||!suppliers.length||!categories.length||!periods.length||!accounts.some(x=>x.category==="LIABILITY"&&x.is_active)}>Save supplier bill draft</button>
+            {(!suppliers.length||!categories.length||!periods.length||!accounts.some(x=>x.category==="LIABILITY"&&x.is_active))&&<small className="muted">Setup required: add a supplier, expense category, open financial period and liability account.</small>}
+          </form>
+          <div className="table-wrap"><table><thead><tr>{["Bill","Supplier","Supplier invoice","Date","Due","Amount","Paid","Balance","Status","Actions"].map(x=><th key={x}>{x}</th>)}</tr></thead><tbody>
+            {supplierBills.map(bill=><tr key={bill.id}>
+              <td>{bill.bill_number}</td><td>{bill.supplier_name}</td><td>{bill.supplier_invoice_number}</td><td>{bill.bill_date}</td><td>{bill.due_date}</td>
+              <td>{money(bill.amount,school.currency)}</td><td>{money(bill.amount_paid,school.currency)}</td><td>{money(bill.balance,school.currency)}</td><td>{bill.status}</td>
+              <td className="row-actions">
+                {bill.status==="DRAFT"&&<button className="small-action" disabled={busy} onClick={()=>void supplierBillAction(bill.id,"submit","Supplier bill submitted for approval.")}>Submit</button>}
+                {bill.status==="SUBMITTED"&&["OWNER","ADMIN"].includes(school.role)&&<button className="small-action" disabled={busy} onClick={()=>void supplierBillAction(bill.id,"approve","Supplier bill approved.")}>Approve</button>}
+                {bill.status==="APPROVED"&&<button className="small-action" disabled={busy} onClick={()=>void supplierBillAction(bill.id,"post","Supplier bill posted to accounts payable.")}>Post</button>}
+                {["POSTED","PART_PAID"].includes(bill.status)&&<button className="small-action" onClick={()=>setForm(old=>({...old,pay_bill_id:String(bill.id),bill_payment_amount:String(bill.balance),bill_payment_period:String(periods.find(p=>!p.is_locked)?.id||""),bill_payment_date:today}))}>Record payment</button>}
+              </td>
+            </tr>)}
+            {!supplierBills.length&&<tr><td colSpan={10} className="table-empty">No supplier bills recorded yet.</td></tr>}
+          </tbody></table></div>
+          {form.pay_bill_id&&<form onSubmit={paySupplierBill} className="entry-panel">
+            <div className="panel-heading"><div><h3>Settle supplier bill {supplierBills.find(x=>String(x.id)===form.pay_bill_id)?.bill_number}</h3><p>Record a full or partial payment against the outstanding payable.</p></div></div>
+            <div className="form-grid">
+              <label>Payment amount (KES)<input required type="number" min="0.01" step="0.01" max={supplierBills.find(x=>String(x.id)===form.pay_bill_id)?.balance} value={form.bill_payment_amount||""} onChange={e=>setField("bill_payment_amount",e.target.value)}/></label>
+              <label>Payment date<input required type="date" value={form.bill_payment_date||today} onChange={e=>setField("bill_payment_date",e.target.value)}/></label>
+              <label>Payment method<select value={form.bill_payment_method||"MPESA"} onChange={e=>setField("bill_payment_method",e.target.value)}><option value="MPESA">M-Pesa</option><option value="BANK">Bank</option><option value="CASH">Cash</option></select></label>
+              <label>Paid from account<select required value={form.bill_payment_account||""} onChange={e=>setField("bill_payment_account",e.target.value)}><option value="">Select cash/bank/M-Pesa account</option>{accounts.filter(x=>x.category==="ASSET"&&x.is_active).map(x=><option key={x.id} value={x.id}>{x.code} — {x.name}</option>)}</select></label>
+              <label>Financial period<select required value={form.bill_payment_period||""} onChange={e=>setField("bill_payment_period",e.target.value)}><option value="">Select period</option>{periods.filter(x=>!x.is_locked).map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
+              <label>Payment reference<input value={form.bill_payment_reference||""} onChange={e=>setField("bill_payment_reference",e.target.value)}/></label>
+            </div>
+            <button className="primary" disabled={busy||!form.bill_payment_account||!form.bill_payment_period}>Record payment</button>
+            <button type="button" className="text-button" onClick={()=>setField("pay_bill_id","")}>Cancel</button>
+          </form>}
+        </section>}
 
         {canWrite&&active==="Expenses & Suppliers"&&<form className="entry-panel" onSubmit={createSupplier}><div className="panel-heading"><div><h2>Add supplier</h2><p>Maintain school supplier and vendor details.</p></div><Plus size={18}/></div><div className="form-grid"><label>Supplier name<input required value={form.supplier_name||""} onChange={e=>setField("supplier_name",e.target.value)}/></label><label>Contact person<input value={form.contact_person||""} onChange={e=>setField("contact_person",e.target.value)}/></label><label>Phone<input value={form.supplier_phone||""} onChange={e=>setField("supplier_phone",e.target.value)}/></label><label>Email<input type="email" value={form.supplier_email||""} onChange={e=>setField("supplier_email",e.target.value)}/></label><label>KRA PIN<input value={form.tax_pin||""} onChange={e=>setField("tax_pin",e.target.value)}/></label><label>Address<input value={form.supplier_address||""} onChange={e=>setField("supplier_address",e.target.value)}/></label></div><button className="primary" disabled={busy}>Save supplier</button></form>}
         {canWrite&&active==="Expenses & Suppliers"&&<form className="entry-panel" onSubmit={createExpense}><div className="panel-heading"><div><h2>Record school expense</h2><p>Save as draft, then post when supporting documents are checked.</p></div><Plus size={18}/></div><div className="form-grid"><label>Description<input required value={form.description||""} onChange={e=>setField("description",e.target.value)}/></label><label>Expense category<select required value={form.category||""} onChange={e=>setField("category",e.target.value)}><option value="">Select category</option>{categories.filter(x=>x.is_active).map(x=><option value={x.id} key={x.id}>{x.name}</option>)}</select></label><label>Supplier (optional)<select value={form.supplier||""} onChange={e=>setField("supplier",e.target.value)}><option value="">No supplier selected</option>{suppliers.filter(x=>x.is_active).map(x=><option value={x.id} key={x.id}>{x.name}</option>)}</select></label><label>Financial period<select required value={form.period||""} onChange={e=>setField("period",e.target.value)}><option value="">Select period</option>{periods.filter(x=>!x.is_locked).map(x=><option value={x.id} key={x.id}>{x.name}</option>)}</select></label><label>Amount (KES)<input required type="number" min="0.01" step="0.01" value={form.amount||""} onChange={e=>setField("amount",e.target.value)}/></label><label>Paid through<select value={form.payment_method||"MPESA"} onChange={e=>setField("payment_method",e.target.value)}><option value="MPESA">M-Pesa</option><option value="CASH">Cash</option><option value="BANK">Bank</option></select></label><label>Expense date<input type="date" value={form.expense_date||today} onChange={e=>setField("expense_date",e.target.value)}/></label><label>Reference<input value={form.reference||""} onChange={e=>setField("reference",e.target.value)}/></label></div><button className="primary" disabled={busy||!categories.length||!periods.length}>Save expense draft</button>{(!categories.length||!periods.length)&&<small className="muted">Setup required: configure an expense category and financial period first.</small>}</form>}
