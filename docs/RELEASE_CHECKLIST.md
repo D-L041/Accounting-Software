@@ -32,21 +32,23 @@ A green frontend build or successful deployment alone is not sufficient for fina
 - [ ] Daraja sandbox end-to-end tests, unattended transaction-status verification, school-specific Paybill/shortcode mapping, callback hardening and production onboarding remain outstanding. C2B automatic posting remains disabled.
 - [x] PWA manifest and service worker cache the application shell and static assets only.
 - [x] Encrypted IndexedDB outbox, AES-GCM device encryption, authenticated school-scoped sync endpoint, idempotency receipts and duplicate-safe expense-draft sync implemented; synced expenses remain DRAFT and cannot post through the sync endpoint.
-- [ ] Full offline operation across all modules, broader draft capture, reference-data strategy, visible retry/conflict/discard workflow, device-loss recovery and independent offline security testing remain outstanding. Financial posting, payments, payroll approval, reconciliation and M-Pesa remain online-only. See `docs/OFFLINE_SYNC_DESIGN.md`.
+- [x] Offline expense draft queue includes visible pending status, manual sync and explicit discard controls.
+- [ ] Full offline operation across all modules, broader draft capture, reference-data strategy, complete conflict resolution, device-loss recovery and independent offline security testing remain outstanding. Financial posting, payments, payroll approval, reconciliation and M-Pesa remain online-only. See `docs/OFFLINE_SYNC_DESIGN.md`.
 - [x] Automated tenant-isolation tests added for bank statements, supplier bills, payroll employee lists and C2B reconciliation.
 - [x] CI dependency audits for Python and npm pass with zero known vulnerabilities on the resolved dependency set.
 - [ ] Independent security review, penetration testing and complete tenant-isolation programme remain outstanding.
 - [x] PostgreSQL backup/restore procedure documented in `docs/BACKUP_RESTORE_RUNBOOK.md`.
 - [ ] Managed backup schedule, retention, monitoring and a witnessed restore drill remain outstanding.
 - [ ] Pin frontend dependency versions and commit `package-lock.json`; add a reproducible Python dependency lock before production release.
-- [ ] Production API, managed PostgreSQL and frontend provisioned and configured.
-- [ ] Custom domain connected and HTTPS verified in the live environment.
+- [x] Same-origin Render Docker deployment blueprint prepared; it serves the React PWA and Django API together to preserve first-party session/CSRF cookies. See `docs/RENDER_DEPLOYMENT.md`.
+- [ ] Render service and managed PostgreSQL not yet provisioned; repository owner must approve the estimated monthly charges and connect the Render account.
+- [ ] Generated Render HTTPS host smoke-tested after provisioning. A custom domain is optional for the pilot and has not been purchased.
 - [x] St Stephen School acceptance test plan and sign-off sheet documented in `docs/ST_STEPHEN_ACCEPTANCE_TEST_PLAN.md`.
 - [ ] End-to-end school acceptance tests passed using approved test data, including supplier payables, payroll, refunds, bank reconciliation, trial balance and balance sheet reconciliation.
 - [ ] St Stephen School administrator and accountant acceptance sign-off received.
 - [x] Initial school administrator workflow guide documented.
 - [ ] Secure production administrator handover, access recovery and support ownership completed.
-- [x] Final branch-head CI run `41227182712` for commit `deb1ef9` passed backend (88 tests), frontend production build, API container build and Python/npm dependency audits (zero known vulnerabilities). Re-run CI after any subsequent code changes.
+- [ ] Final branch-head CI for the current implementation must pass backend migrations/tests, frontend production build, API container build and Python/npm dependency audits. Earlier successful CI does not cover the current offline, bank CSV, NITA or deployment changes.
 
 ## Release rule
 
