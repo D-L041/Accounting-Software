@@ -16,11 +16,11 @@ A multi-school accounting platform for Kenyan primary and secondary schools. The
 
 ## Implemented in the development branch
 
-- School workspaces, memberships and role-scoped access (owner, admin, accountant, bursar, viewer).
+- School workspaces, role-scoped access (owner, admin, accountant, bursar, viewer) and owner/admin-managed staff logins.
 - Academic years, classes/streams and student records.
 - School-scoped chart of accounts, financial periods and journal entries.
 - Balanced double-entry posting, locked-period checks and immutable posted journals/lines.
-- Fee items, draft invoices, invoice issuance and automatic receivables/income journal posting.
+- Fee items, class/term fee schedules, duplicate-safe bulk draft invoice generation, invoice issuance and automatic receivables/income journal posting.
 - Cash, bank and M-Pesa receipt recording, invoice allocations and balance updates.
 - Supplier directory, expense categories and draft expense entry.
 - Expense posting to the appropriate expense and cash/bank/M-Pesa accounts.
