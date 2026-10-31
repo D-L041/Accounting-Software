@@ -172,10 +172,12 @@ class SupplierBill(models.Model):
             errors["payable_account"] = "Choose a liability account belonging to this school."
         if self.bill_date and self.due_date and self.due_date < self.bill_date:
             errors["due_date"] = "Due date cannot be before bill date."
-        if self.period_id and self.bill_date and not (
-            self.period.starts_on <= self.bill_date <= self.period.ends_on
-        ):
-            errors["bill_date"] = "Bill date must fall within its financial period."
+        if self.period_id and self.bill_date:
+            bill_date = self._meta.get_field("bill_date").to_python(self.bill_date)
+            period_start = FinancialPeriod._meta.get_field("starts_on").to_python(self.period.starts_on)
+            period_end = FinancialPeriod._meta.get_field("ends_on").to_python(self.period.ends_on)
+            if not (period_start <= bill_date <= period_end):
+                errors["bill_date"] = "Bill date must fall within its financial period."
         if errors:
             raise ValidationError(errors)
 
@@ -229,10 +231,12 @@ class SupplierBillPayment(models.Model):
             errors["payment_account"] = "Payment account must belong to the bill's school."
         if self.payment_account_id and self.payment_account.category != Account.Category.ASSET:
             errors["payment_account"] = "Choose a cash, bank or M-Pesa asset account."
-        if self.period_id and self.payment_date and not (
-            self.period.starts_on <= self.payment_date <= self.period.ends_on
-        ):
-            errors["payment_date"] = "Payment date must fall within its financial period."
+        if self.period_id and self.payment_date:
+            payment_date = self._meta.get_field("payment_date").to_python(self.payment_date)
+            period_start = FinancialPeriod._meta.get_field("starts_on").to_python(self.period.starts_on)
+            period_end = FinancialPeriod._meta.get_field("ends_on").to_python(self.period.ends_on)
+            if not (period_start <= payment_date <= period_end):
+                errors["payment_date"] = "Payment date must fall within its financial period."
         if errors:
             raise ValidationError(errors)
 
