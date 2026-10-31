@@ -40,7 +40,7 @@ This benchmark is encoded in `payroll/tests.py`. It assumes the stated statutory
 1. Employee-declared insurance relief (15% of qualifying premiums, subject to the annual limit), mortgage-interest deduction, post-retirement medical fund contributions, and other qualifying pension contributions are not captured.
 2. Valid tax exemption certificates and disability-related exemptions are not modelled.
 3. Taxable non-cash benefits (including housing, car, low-interest loans and taxable benefits/facilities), meal benefits and other irregular earnings are not fully captured.
-4. NITA industrial training levy (currently KES 50 per employee per month, employer cost and not an employee deduction) is not included in payroll posting.
+4. NITA industrial training levy is now calculated at the effective-dated KES 50 per active employee per month and posted as an employer cost to a separate NITA payable account. The rate, employer-only treatment and remittance timing must still be rechecked for each payroll month; the complete statutory remittance schedule is not yet implemented.
 5. Payroll lacks complete statutory remittance schedules, P10/iTax export, SHA remittance support, NSSF schedules and NITA reporting.
 6. Independent review by a Kenyan payroll/tax practitioner and parallel-run comparison against authoritative payroll calculations are still required.
 
@@ -54,4 +54,6 @@ Do not use this module to approve or pay live payroll until these gaps are resol
 - KRA simplified PAYE return guide (includes NSSF deduction and KES 30,000 aggregate pension limit): https://www.kra.go.ke/images/publications/STEP-BY-STEP-GUIDE-FOR-THE-SIMPLIFIED-PAYE-RETURN.pdf
 - NSSF Year 4 (2026) contribution rates: https://www.nssf.or.ke/notice-to-employers-year-4-2026-nssf-contribution-rates
 - Social Health Insurance (General) Regulations, 2024: https://www.health.go.ke/sites/default/files/2024-11/Social%20Health%20Insurance%20%28General%29%20Regulations%2C%202024_0.pdf
-- NITA industrial training levy: https://www.nita.go.ke/our-services/levy-inspectorate.html
+- NITA levy guidance (KES 50 per employee per month; employer cost, not deducted from payroll): https://www.nita.go.ke/faq-s/99-nita-services
+- Industrial Training (Amendment) Act, 2022 (section 5B: employer-borne levy and collection): https://resources.mwakili.com/resources/legal-docs-plain-text/TheIndustrialTraining_Amendment_Act_2022
+- NITA levy forms and remittance returns: https://www.nita.go.ke/media-centre/downloads/industrial-training-levy.html
