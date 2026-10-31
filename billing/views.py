@@ -8,9 +8,9 @@ from rest_framework.response import Response
 
 from accounts.models import School, SchoolMembership
 from auditlog.services import record_event
-from .models import FeeItem, FeeSchedule, Invoice, Payment, SchoolBillingSettings
-from .serializers import FeeItemSerializer, FeeScheduleSerializer, InvoiceSerializer, PaymentSerializer, SchoolBillingSettingsSerializer
-from .services import generate_fee_schedule_invoices, issue_invoice
+from .models import CreditNote, FeeItem, FeeSchedule, Invoice, Payment, PaymentRefund, SchoolBillingSettings
+from .serializers import CreditNoteSerializer, FeeItemSerializer, FeeScheduleSerializer, InvoiceSerializer, PaymentRefundInputSerializer, PaymentRefundSerializer, PaymentSerializer, SchoolBillingSettingsSerializer
+from .services import generate_fee_schedule_invoices, issue_invoice, post_credit_note, record_payment_refund
 
 
 class BillingViewSet(viewsets.ModelViewSet):
@@ -150,3 +150,48 @@ class PaymentViewSet(BillingViewSet):
             raise ValidationError(exc.messages) from exc
         except IntegrityError as exc:
             raise ValidationError("This receipt or external payment reference has already been recorded.") from exc
+
+    @action(detail=True, methods=["post"], url_path="refunds")
+    def refund(self, request, school_pk=None, pk=None):
+        self.check_write_role()
+        payment = self.get_object()
+        serializer = PaymentRefundInputSerializer(data=request.data, context={"school": self.get_school()})
+        serializer.is_valid(raise_exception=True)
+        try:
+            refund = record_payment_refund(payment.pk, request.user, **serializer.validated_data)
+        except DjangoValidationError as exc:
+            raise ValidationError(exc.messages) from exc
+        except IntegrityError as exc:
+            raise ValidationError("The refund could not be recorded because of a duplicate or conflicting ledger reference.") from exc
+        return Response(PaymentRefundSerializer(refund).data, status=status.HTTP_201_CREATED)
+
+class CreditNoteViewSet(BillingViewSet):
+    serializer_class = CreditNoteSerializer
+    http_method_names = ["get", "post", "head", "options"]
+
+    def get_queryset(self):
+        return CreditNote.objects.filter(school=self.get_school()).select_related(
+            "invoice", "period", "journal_entry", "created_by"
+        ).prefetch_related("lines__invoice_line__fee_item")
+
+    def perform_create(self, serializer):
+        self.check_write_role()
+        note = serializer.save()
+        record_event(
+            school=self.get_school(), actor=self.request.user, action="CREDIT_NOTE_CREATED",
+            entity_type="CreditNote", entity_id=note.pk,
+            summary=f"Created draft credit note {note.credit_note_number}",
+            metadata={"invoice_id": note.invoice_id, "amount": str(note.amount)},
+        )
+
+    @action(detail=True, methods=["post"])
+    def post(self, request, school_pk=None, pk=None):
+        self.check_write_role()
+        note = self.get_object()
+        try:
+            note = post_credit_note(note.pk, request.user)
+        except DjangoValidationError as exc:
+            raise ValidationError(exc.messages) from exc
+        return Response(self.get_serializer(note).data, status=status.HTTP_200_OK)
+
+
