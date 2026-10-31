@@ -32,6 +32,7 @@ class Migration(migrations.Migration):
                 ("invoice_prefix", models.CharField(default="INV", max_length=12)),
                 ("receipt_prefix", models.CharField(default="RCT", max_length=12)),
                 ("bank_account", models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name="billing_bank_settings", to="ledger.account")),
+                ("mpesa_account", models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name="billing_mpesa_settings", to="ledger.account")),
                 ("cash_account", models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name="billing_cash_settings", to="ledger.account")),
                 ("receivables_account", models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name="billing_receivables_settings", to="ledger.account")),
                 ("school", models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name="billing_settings", to="accounts.school")),
