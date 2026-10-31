@@ -39,7 +39,7 @@ export default function PayrollPanel({schoolId,currency,periods,accounts,canWrit
  }
  async function saveSettings(e:React.FormEvent){
   e.preventDefault();setBusy(true);setError("");
-  try{await api(`${base}/settings/`,{method:settings?"PATCH":"POST",...(settings?{}:{}),body:JSON.stringify(mapping)});await refresh();onChanged?.();}
+  try{await api(settings ? `${base}/settings/${settings.id}/` : `${base}/settings/`,{method:settings?"PATCH":"POST",body:JSON.stringify(mapping)});await refresh();onChanged?.();}
   catch(err){setError(err instanceof Error?err.message:"Could not save payroll account mappings.");}finally{setBusy(false);}
  }
  async function createRun(e:React.FormEvent){
