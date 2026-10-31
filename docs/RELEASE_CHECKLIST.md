@@ -33,6 +33,7 @@ A green frontend build or successful deployment alone is not sufficient for fina
 - [ ] Daraja sandbox end-to-end tests, unattended transaction-status verification, school-specific Paybill/shortcode mapping, callback hardening and production onboarding remain outstanding. C2B automatic posting remains disabled.
 - [x] PWA manifest and service worker cache the application shell and static assets only.
 - [x] Encrypted IndexedDB outbox, AES-GCM device encryption, authenticated school-scoped sync endpoint, idempotency receipts and duplicate-safe expense-draft sync implemented; synced expenses remain DRAFT and cannot post through the sync endpoint.
+- [x] Server-side idempotent purchase-order draft sync added with allow-listed payload validation, school-scoped supplier/period checks, duplicate-key conflict detection and draft-only creation; client-side encrypted purchase-order queue and conflict UI remain outstanding.
 - [x] Offline expense draft queue includes visible pending status, manual sync and explicit discard controls.
 - [ ] Full offline operation across all modules, broader draft capture, reference-data strategy, complete conflict resolution, device-loss recovery and independent offline security testing remain outstanding. Financial posting, payments, payroll approval, reconciliation and M-Pesa remain online-only. See `docs/OFFLINE_SYNC_DESIGN.md`.
 - [x] Automated tenant-isolation tests added for bank statements, supplier bills, payroll employee lists and C2B reconciliation.
