@@ -15,4 +15,5 @@ urlpatterns = [
     path("runs/", PayrollRunViewSet.as_view({"get": "list", "post": "create"}), name="payroll-runs"),
     path("runs/<int:pk>/", PayrollRunViewSet.as_view({"get": "retrieve"}), name="payroll-run-detail"),
     path("runs/<int:pk>/post/", PayrollRunViewSet.as_view({"post": "post"}), name="payroll-run-post"),
+    path("runs/<int:pk>/statutory-export/", PayrollRunViewSet.as_view({"get": "statutory_export"}), name="payroll-run-statutory-export"),
 ]
