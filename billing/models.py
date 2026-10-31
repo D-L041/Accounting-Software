@@ -104,8 +104,13 @@ class Invoice(models.Model):
             errors["academic_year"] = "Academic year must belong to this school."
         if self.period_id and self.period.school_id != self.school_id:
             errors["period"] = "Financial period must belong to this school."
-        if self.fee_schedule_id and (self.fee_schedule.school_id != self.school_id or self.fee_schedule.classroom_id != self.student.classroom_id):
-            errors["fee_schedule"] = "Fee schedule must belong to the same school and student class."
+        if self.fee_schedule_id and (
+            self.fee_schedule.school_id != self.school_id
+            or self.fee_schedule.classroom_id != self.student.classroom_id
+            or self.fee_schedule.academic_year_id != self.academic_year_id
+            or self.fee_schedule.period_id != self.period_id
+        ):
+            errors["fee_schedule"] = "Fee schedule must match the school, student class, academic year and financial period."
         if errors:
             raise ValidationError(errors)
 
@@ -246,6 +251,8 @@ class FeeSchedule(models.Model):
             errors["classroom"] = "Class must belong to this school and academic year."
         if self.period_id and self.period.school_id != self.school_id:
             errors["period"] = "Financial period must belong to this school."
+        if self.period_id and not (self.period.starts_on <= self.invoice_date <= self.period.ends_on):
+            errors["invoice_date"] = "Invoice date must fall within the financial period."
         if self.due_date < self.invoice_date:
             errors["due_date"] = "Due date cannot precede invoice date."
         if errors:
@@ -272,8 +279,10 @@ class FeeScheduleLine(models.Model):
 
     def clean(self):
         super().clean()
-        if self.fee_item_id and self.schedule_id and self.fee_item.school_id != self.schedule.school_id:
-            raise ValidationError({"fee_item": "Fee item must belong to the fee schedule's school."})
+        if self.fee_item_id and self.schedule_id and (
+            self.fee_item.school_id != self.schedule.school_id or not self.fee_item.is_active
+        ):
+            raise ValidationError({"fee_item": "Fee item must be active and belong to the fee schedule's school."})
 
     def save(self, *args, **kwargs):
         self.full_clean()
