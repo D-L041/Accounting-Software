@@ -1,5 +1,6 @@
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
@@ -8,8 +9,8 @@ from rest_framework.response import Response
 
 from accounts.models import School, SchoolMembership
 from auditlog.services import record_event
-from .models import Employee, PayrollRun, PayrollSettings
-from .serializers import EmployeeSerializer, PayrollRunInputSerializer, PayrollRunSerializer, PayrollSettingsSerializer
+from .models import Employee, PayrollRule, PayrollRun, PayrollSettings, PayrollTaxBand
+from .serializers import EmployeeSerializer, PayrollRuleSerializer, PayrollRunInputSerializer, PayrollRunSerializer, PayrollSettingsSerializer, PayrollTaxBandSerializer
 from .services import create_payroll_run, post_payroll_run
 
 
@@ -33,6 +34,13 @@ class SchoolPayrollViewSet:
 
     def get_serializer_context(self):
         return {**super().get_serializer_context(), "school": self.get_school()}
+
+    def check_admin_role(self):
+        member = SchoolMembership.objects.filter(
+            school=self.get_school(), user=self.request.user, is_active=True
+        ).first()
+        if not member or member.role not in {SchoolMembership.Role.OWNER, SchoolMembership.Role.ADMIN}:
+            raise PermissionDenied("Only the school owner or administrator can change statutory payroll rules.")
 
     def check_write_role(self):
         member = SchoolMembership.objects.filter(
@@ -133,3 +141,60 @@ class PayrollRunViewSet(SchoolPayrollViewSet, viewsets.GenericViewSet):
         except DjangoValidationError as exc:
             raise ValidationError(exc.messages) from exc
         return Response(self.get_serializer(run).data, status=status.HTTP_200_OK)
+
+class PayrollRuleViewSet(SchoolPayrollViewSet, viewsets.ModelViewSet):
+    serializer_class = PayrollRuleSerializer
+    http_method_names = ["get", "post", "patch", "head", "options"]
+
+    def get_queryset(self):
+        return PayrollRule.objects.filter(Q(school=self.get_school()) | Q(school__isnull=True))
+
+    def perform_create(self, serializer):
+        self.check_admin_role()
+        rule = serializer.save(school=self.get_school())
+        record_event(
+            school=self.get_school(), actor=self.request.user,
+            action="PAYROLL_RULE_CREATED", entity_type="PayrollRule", entity_id=rule.pk,
+            summary=f"Created effective-dated {rule.code} payroll rule",
+            metadata={"effective_from": rule.effective_from.isoformat(), "effective_to": rule.effective_to.isoformat() if rule.effective_to else None},
+        )
+
+    def perform_update(self, serializer):
+        self.check_admin_role()
+        if serializer.instance.school_id != self.get_school().id:
+            raise PermissionDenied("Global statutory rules cannot be edited by a school.")
+        rule = serializer.save()
+        record_event(
+            school=self.get_school(), actor=self.request.user,
+            action="PAYROLL_RULE_UPDATED", entity_type="PayrollRule", entity_id=rule.pk,
+            summary=f"Updated effective-dated {rule.code} payroll rule",
+        )
+
+
+class PayrollTaxBandViewSet(SchoolPayrollViewSet, viewsets.ModelViewSet):
+    serializer_class = PayrollTaxBandSerializer
+    http_method_names = ["get", "post", "patch", "head", "options"]
+
+    def get_queryset(self):
+        return PayrollTaxBand.objects.filter(Q(school=self.get_school()) | Q(school__isnull=True))
+
+    def perform_create(self, serializer):
+        self.check_admin_role()
+        band = serializer.save(school=self.get_school())
+        record_event(
+            school=self.get_school(), actor=self.request.user,
+            action="PAYROLL_TAX_BAND_CREATED", entity_type="PayrollTaxBand", entity_id=band.pk,
+            summary="Created effective-dated PAYE tax band",
+        )
+
+    def perform_update(self, serializer):
+        self.check_admin_role()
+        if serializer.instance.school_id != self.get_school().id:
+            raise PermissionDenied("Global PAYE tax bands cannot be edited by a school.")
+        band = serializer.save()
+        record_event(
+            school=self.get_school(), actor=self.request.user,
+            action="PAYROLL_TAX_BAND_UPDATED", entity_type="PayrollTaxBand", entity_id=band.pk,
+            summary="Updated effective-dated PAYE tax band",
+        )
+
