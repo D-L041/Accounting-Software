@@ -8,6 +8,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from django.core.exceptions import ImproperlyConfigured, ValidationError
+from django.db import IntegrityError
 from django.db import transaction
 from django.utils import timezone
 
@@ -140,7 +141,13 @@ def process_stk_callback(payload):
         attempt.save(update_fields=["status", "updated_at"])
         return "failed"
     # A callback alone is not trusted as proof of payment. Confirm with Daraja's STK query API.
-    verification = query_stk_push(attempt)
+    try:
+        verification = query_stk_push(attempt)
+    except (ValidationError, ImproperlyConfigured):
+        attempt.status = StkPushAttempt.Status.REVIEW
+        attempt.result_description = "Daraja STK Query was unavailable; manual verification required."
+        attempt.save(update_fields=["status", "result_description", "updated_at"])
+        return "verification_unavailable"
     if str(verification.get("ResultCode")) != "0":
         attempt.status = StkPushAttempt.Status.REVIEW
         attempt.result_description = "STK query did not confirm success; manual review required."
@@ -162,13 +169,19 @@ def process_stk_callback(payload):
         attempt.result_description = "Invoice balance changed after STK request; manual allocation review required."
         attempt.save(update_fields=["status", "result_description", "updated_at"])
         return "balance_changed"
-    payment = record_payment(
-        school=attempt.school, student=invoice.student, payment_date=timezone.localdate(),
-        method="MPESA", amount=received_amount,
-        allocations=[{"invoice_id": invoice.pk, "amount": received_amount}],
-        user=attempt.initiated_by, transaction_reference=receipt,
-        notes=f"Daraja STK Push {attempt.checkout_request_id}",
-    )
+    try:
+        payment = record_payment(
+            school=attempt.school, student=invoice.student, payment_date=timezone.localdate(),
+            method="MPESA", amount=received_amount,
+            allocations=[{"invoice_id": invoice.pk, "amount": received_amount}],
+            user=attempt.initiated_by, transaction_reference=receipt,
+            notes=f"Daraja STK Push {attempt.checkout_request_id}",
+        )
+    except (ValidationError, IntegrityError):
+        attempt.status = StkPushAttempt.Status.REVIEW
+        attempt.result_description = "Payment could not be posted safely; manual reconciliation required."
+        attempt.save(update_fields=["status", "result_description", "updated_at"])
+        return "posting_review"
     attempt.payment = payment
     attempt.mpesa_receipt_number = receipt
     attempt.status = StkPushAttempt.Status.POSTED
