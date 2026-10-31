@@ -2,7 +2,7 @@ from rest_framework import serializers
 
 from billing.models import Payment
 from ledger.models import Account, FinancialPeriod
-from .models import Expense, ExpenseCategory, Supplier, SupplierBill, SupplierBillPayment
+from .models import Expense, ExpenseBudget, ExpenseCategory, Supplier, SupplierBill, SupplierBillPayment
 
 
 class SupplierSerializer(serializers.ModelSerializer):
@@ -154,3 +154,33 @@ class RecordSupplierBillPaymentSerializer(serializers.Serializer):
             raise serializers.ValidationError({"payment_account": "Choose an asset account."})
         return attrs
 
+
+
+class ExpenseBudgetSerializer(serializers.ModelSerializer):
+    category_name = serializers.CharField(source="category.name", read_only=True)
+    period_name = serializers.CharField(source="period.name", read_only=True)
+    actual_amount = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
+    variance = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
+    utilisation_percent = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ExpenseBudget
+        fields = [
+            "id", "period", "period_name", "category", "category_name",
+            "budget_amount", "actual_amount", "variance", "utilisation_percent",
+            "notes", "created_at", "updated_at",
+        ]
+        read_only_fields = ["id", "actual_amount", "variance", "utilisation_percent", "created_at", "updated_at"]
+
+    def get_utilisation_percent(self, obj):
+        if not obj.budget_amount:
+            return None
+        return round(float(obj.actual_amount / obj.budget_amount * 100), 2)
+
+    def validate(self, attrs):
+        school = self.context["school"]
+        for field in ("period", "category"):
+            value = attrs.get(field, getattr(self.instance, field, None))
+            if value and value.school_id != school.id:
+                raise serializers.ValidationError({field: f"{field.title()} must belong to this school."})
+        return attrs
