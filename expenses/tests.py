@@ -25,7 +25,7 @@ class ExpensePostingTests(TestCase):
         self.client.force_authenticate(self.user)
 
     def test_posting_expense_creates_balanced_journal(self):
-        response = self.client.post(f"/api/schools/{self.school.pk}/expenses/expenses/", {
+        response = self.client.post(f"/api/schools/{self.school.pk}/expenses/", {
             "category": self.category.pk, "period": self.period.pk, "expense_date": "2026-03-02",
             "description": "Bus repair", "amount": "12500.00", "payment_method": "MPESA",
         }, format="json")
