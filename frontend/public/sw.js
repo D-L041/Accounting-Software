@@ -21,7 +21,7 @@ self.addEventListener("fetch", event => {
     }).catch(() => caches.match("/index.html")));
     return;
   }
-  if (url.pathname.startsWith("/assets/") || SHELL_FILES.includes(url.pathname)) {
+  if (url.pathname.startsWith("/static/assets/") || SHELL_FILES.includes(url.pathname)) {
     event.respondWith(caches.match(request).then(cached => cached || fetch(request).then(response => {
       if (response.ok) {
         const copy = response.clone();
