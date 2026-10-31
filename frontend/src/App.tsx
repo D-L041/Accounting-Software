@@ -141,9 +141,9 @@ export default function App() {
   },[active,school]);
   useEffect(() => {
     if(active!=="Cashbook & Banks" || !school) return;
-    const periodId = cashbookPeriod || String(periods[0]?.id || "");
+    const periodId = periods.some(p=>String(p.id)===cashbookPeriod) ? cashbookPeriod : String(periods[0]?.id || "");
     if(!periodId) { setCashbook(null); return; }
-    if(!cashbookPeriod) setCashbookPeriod(periodId);
+    if(cashbookPeriod!==periodId) setCashbookPeriod(periodId);
     api<Row>("/api/schools/" + school.id + "/ledger/reports/cashbook/?period=" + periodId)
       .then(setCashbook).catch(e=>setError(errorText(e)));
   },[active,school,periods,cashbookPeriod]);
