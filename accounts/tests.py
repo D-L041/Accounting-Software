@@ -165,3 +165,76 @@ class SchoolMemberApiTests(TestCase):
         self.client.force_authenticate(viewer)
         response = self.client.get(f"/api/schools/{self.school.pk}/members/")
         self.assertEqual(response.status_code, 403)
+
+
+class OfflinePurchaseOrderSyncTests(TestCase):
+    def setUp(self):
+        from datetime import date
+        from expenses.models import Supplier
+        from ledger.models import FinancialPeriod
+        self.user = get_user_model().objects.create_user(username="offline-po-owner", password="test-password")
+        self.school = School.objects.create(name="Offline PO School", code="offline-po-school")
+        SchoolMembership.objects.create(school=self.school, user=self.user, role=SchoolMembership.Role.OWNER)
+        self.period = FinancialPeriod.objects.create(
+            school=self.school, name="FY2026", starts_on=date(2026, 1, 1), ends_on=date(2026, 12, 31)
+        )
+        self.supplier = Supplier.objects.create(school=self.school, name="Approved Test Supplier")
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+        self.url = f"/api/schools/{self.school.pk}/offline-sync/"
+        self.key = "a8f3b84a-21b7-4e92-8ef0-4f47bff4a5a0"
+        self.payload = {
+            "supplier": self.supplier.pk,
+            "period": self.period.pk,
+            "order_date": "2026-10-01",
+            "expected_date": "2026-10-15",
+            "description": "Offline stationery order",
+            "lines": [
+                {"description": "Exercise books", "quantity": "10.000", "unit_cost": "75.00"},
+                {"description": "Pens", "quantity": "20.000", "unit_cost": "15.00"},
+            ],
+        }
+
+    def sync(self, payload=None, key=None):
+        return self.client.post(self.url, {
+            "resource_type": "purchase_order",
+            "idempotency_key": key or self.key,
+            "payload": payload or self.payload,
+        }, format="json")
+
+    def test_purchase_order_sync_creates_non_submitted_draft_and_is_idempotent(self):
+        from expenses.models import PurchaseOrder
+        first = self.sync()
+        self.assertEqual(first.status_code, 201, first.data)
+        order = PurchaseOrder.objects.get(pk=first.data["purchase_order_id"])
+        self.assertEqual(order.status, PurchaseOrder.Status.DRAFT)
+        self.assertEqual(order.lines.count(), 2)
+        self.assertEqual(str(order.total_amount), "1050.00")
+        retry = self.sync()
+        self.assertEqual(retry.status_code, 200, retry.data)
+        self.assertEqual(retry.data["status"], "already_applied")
+        self.assertEqual(PurchaseOrder.objects.filter(school=self.school).count(), 1)
+
+    def test_reusing_sync_key_with_different_payload_returns_conflict(self):
+        first = self.sync()
+        self.assertEqual(first.status_code, 201, first.data)
+        changed = {**self.payload, "description": "Changed after first delivery"}
+        response = self.sync(payload=changed)
+        self.assertEqual(response.status_code, 409)
+        from expenses.models import PurchaseOrder
+        self.assertEqual(PurchaseOrder.objects.filter(school=self.school).count(), 1)
+
+    def test_purchase_order_sync_rejects_supplier_from_another_school(self):
+        from expenses.models import Supplier
+        other = School.objects.create(name="Other Offline PO School", code="other-offline-po-school")
+        foreign_supplier = Supplier.objects.create(school=other, name="Foreign Supplier")
+        payload = {**self.payload, "supplier": foreign_supplier.pk}
+        response = self.sync(payload=payload)
+        self.assertEqual(response.status_code, 400)
+        from expenses.models import PurchaseOrder
+        self.assertFalse(PurchaseOrder.objects.filter(school=self.school).exists())
+
+    def test_viewer_cannot_sync_purchase_order(self):
+        SchoolMembership.objects.filter(school=self.school, user=self.user).update(role=SchoolMembership.Role.VIEWER)
+        response = self.sync()
+        self.assertEqual(response.status_code, 403)
