@@ -29,7 +29,7 @@ export default function PayrollPanel({schoolId,currency,periods,accounts,canWrit
    api<Row[]>(`${base}/settings/`),api<Row[]>(`${base}/rules/`),api<Row[]>(`${base}/tax-bands/`),
   ]);
   setEmployees(e);setRuns(r);setSettings(s[0]||null);setRules(pr);setBands(tb);
-  if(s[0])setMapping({salary_expense_account:String(s[0].salary_expense_account),net_payable_account:String(s[0].net_payable_account),paye_payable_account:String(s[0].paye_payable_account),nssf_payable_account:String(s[0].nssf_payable_account),shif_payable_account:String(s[0].shif_payable_account),housing_levy_payable_account:String(s[0].housing_levy_payable_account)});
+  if(s[0])setMapping({salary_expense_account:String(s[0].salary_expense_account),net_payable_account:String(s[0].net_payable_account),paye_payable_account:String(s[0].paye_payable_account),nssf_payable_account:String(s[0].nssf_payable_account),shif_payable_account:String(s[0].shif_payable_account),housing_levy_payable_account:String(s[0].housing_levy_payable_account),other_deductions_payable_account:String(s[0].other_deductions_payable_account)});
  }
  useEffect(()=>{void refresh().catch(e=>setError(e.message));},[schoolId]);
  async function createEmployee(e:React.FormEvent){
@@ -68,7 +68,7 @@ export default function PayrollPanel({schoolId,currency,periods,accounts,canWrit
    <form className="entry-panel" onSubmit={saveSettings}>
     <h3>Payroll ledger accounts</h3>
     <label>Salary expense<select required value={mapping.salary_expense_account||""} onChange={e=>setMapping(v=>({...v,salary_expense_account:e.target.value}))}><option value="">Select expense account</option>{expenses.map(a=><option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}</select></label>
-    {(["net_payable_account","paye_payable_account","nssf_payable_account","shif_payable_account","housing_levy_payable_account"] as const).map((key,i)=><label key={key}>{["Net salaries payable","PAYE payable","NSSF payable","SHIF payable","Housing levy payable"][i]}<select required value={mapping[key]||""} onChange={e=>setMapping(v=>({...v,[key]:e.target.value}))}><option value="">Select liability account</option>{liabilities.map(a=><option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}</select></label>)}
+    {(["net_payable_account","paye_payable_account","nssf_payable_account","shif_payable_account","housing_levy_payable_account","other_deductions_payable_account"] as const).map((key,i)=><label key={key}>{["Net salaries payable","PAYE payable","NSSF payable","SHIF payable","Housing levy payable","Other deductions payable"][i]}<select required value={mapping[key]||""} onChange={e=>setMapping(v=>({...v,[key]:e.target.value}))}><option value="">Select liability account</option>{liabilities.map(a=><option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}</select></label>)}
     <button className="primary" disabled={busy||!expenses.length||!liabilities.length}>{settings?"Update account mappings":"Save account mappings"}</button>
    </form>
   </div>}
