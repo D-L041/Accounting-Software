@@ -138,3 +138,15 @@ class PayrollWorkflowTests(TestCase):
             }, format="json",
         )
         self.assertEqual(response.status_code, 403)
+
+    def test_employee_list_is_limited_to_the_selected_school(self):
+        other = School.objects.create(name="Other Payroll Tenant", code="other-payroll-tenant")
+        Employee.objects.create(
+            school=other, employee_number="OTHER001", first_name="Other",
+            last_name="Staff", basic_salary="30000.00", hire_date="2025-01-01",
+        )
+        response = self.client.get(f"/api/schools/{self.school.pk}/payroll/employees/")
+        self.assertEqual(response.status_code, 200)
+        returned_ids = {item["id"] for item in response.data}
+        self.assertEqual(returned_ids, {self.employee.pk})
+
