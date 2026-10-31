@@ -159,3 +159,31 @@ class BillingApiTests(TestCase):
         self.assertEqual(repeated.data["generated_count"], 0)
         self.assertEqual(repeated.data["skipped_existing_count"], 2)
         self.assertEqual(Invoice.objects.filter(fee_schedule_id=created.data["id"]).count(), 2)
+
+
+    def test_payment_receipt_pdf_is_available_only_in_own_school(self):
+        invoice = self.make_invoice()
+        issued = self.client.post(
+            f"/api/schools/{self.school.pk}/billing/invoices/{invoice['id']}/issue/", {}, format="json"
+        )
+        self.assertEqual(issued.status_code, 200, issued.data)
+        payment = self.client.post(
+            f"/api/schools/{self.school.pk}/billing/payments/",
+            {
+                "student": self.student.pk, "payment_date": "2026-02-03", "method": "CASH",
+                "amount": "1000.00", "allocations": [{"invoice_id": invoice["id"], "amount": "1000.00"}],
+            },
+            format="json",
+        )
+        self.assertEqual(payment.status_code, 201, payment.data)
+        receipt = self.client.get(
+            f"/api/schools/{self.school.pk}/billing/payments/{payment.data['id']}/receipt/"
+        )
+        self.assertEqual(receipt.status_code, 200)
+        self.assertEqual(receipt["Content-Type"], "application/pdf")
+        self.assertTrue(receipt.content.startswith(b"%PDF"))
+        other = School.objects.create(name="Private Receipt School", code="private-receipt-school")
+        response = self.client.get(
+            f"/api/schools/{other.pk}/billing/payments/{payment.data['id']}/receipt/"
+        )
+        self.assertEqual(response.status_code, 404)
