@@ -34,6 +34,8 @@ class OfflineExpenseSyncView(APIView):
     }
 
     def post(self, request, school_pk):
+        if len(request.body) > 128 * 1024:
+            raise ValidationError("Offline draft payload is too large.")
         school = get_object_or_404(
             School.objects.filter(
                 memberships__user=request.user,
@@ -54,7 +56,7 @@ class OfflineExpenseSyncView(APIView):
             raise ValidationError({"idempotency_key": "A valid UUID idempotency key is required."})
 
         resource_type = request.data.get("resource_type", "expense")
-        if resource_type not in self.allowed_fields:
+        if not isinstance(resource_type, str) or resource_type not in self.allowed_fields:
             raise ValidationError({"resource_type": "Only expense and purchase-order drafts can be synchronised."})
         payload = request.data.get("payload")
         if not isinstance(payload, dict) or not payload:
