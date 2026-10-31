@@ -14,7 +14,7 @@ A green frontend build or successful deployment alone is not sufficient for fina
 - [x] Student, fees, invoices, payment allocation and receipt workflows implemented in API and frontend.
 - [x] Supplier directory, expense categories and ledger-posted expense workflow implemented.\n- [ ] Payroll, budgeting, supplier bills/payables and procurement workflows implemented.
 - [x] Trial balance API and frontend report implemented.\n- [ ] Bank reconciliation, balance sheet and full income/expenditure reporting implemented.
-- [ ] Audit event capture and financial approval workflows implemented.
+- [x] Immutable audit events for core financial posting actions and a school-scoped audit log.\n- [ ] Complete CRUD audit coverage and financial approval workflows.
 - [ ] Offline data queue, sync and conflict resolution implemented and tested.
 - [ ] Independent security review and expanded tenant-isolation tests passed.
 - [ ] Backup schedule and a real restore drill verified.
