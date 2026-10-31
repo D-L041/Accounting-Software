@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     "expenses",
     "payroll",
     "auditlog",
+    "daraja",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
