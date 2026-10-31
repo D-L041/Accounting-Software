@@ -132,3 +132,66 @@ def build_balance_sheet(period):
         "difference": totals["ASSET"] - liabilities_and_equity,
         "is_balanced": totals["ASSET"] == liabilities_and_equity,
     }
+
+
+def build_cashbook(period):
+    """List posted movements through the school's configured cash and clearing accounts.
+
+    The report deliberately starts movement balances at zero; it does not invent
+    opening balances or claim to be a bank statement reconciliation.
+    """
+    from billing.models import SchoolBillingSettings
+
+    settings = SchoolBillingSettings.objects.filter(school=period.school).first()
+    if settings is None:
+        return {
+            "period": period.name,
+            "transactions": [],
+            "total_receipts": Decimal("0.00"),
+            "total_payments": Decimal("0.00"),
+            "net_movement": Decimal("0.00"),
+            "opening_balance_included": False,
+        }
+
+    account_ids = list(dict.fromkeys([
+        settings.cash_account_id,
+        settings.bank_account_id,
+        settings.mpesa_account_id,
+    ]))
+    lines = (
+        JournalLine.objects.filter(
+            entry__school=period.school,
+            entry__period=period,
+            entry__posted=True,
+            account_id__in=account_ids,
+        )
+        .select_related("entry", "account")
+        .order_by("entry__entry_date", "entry_id", "id")
+    )
+    balances = {account_id: Decimal("0.00") for account_id in account_ids}
+    transactions = []
+    total_receipts = Decimal("0.00")
+    total_payments = Decimal("0.00")
+    for line in lines:
+        balances[line.account_id] += line.debit - line.credit
+        total_receipts += line.debit
+        total_payments += line.credit
+        transactions.append({
+            "date": line.entry.entry_date,
+            "journal_reference": line.entry.reference,
+            "description": line.description or line.entry.description,
+            "account_id": line.account_id,
+            "account_code": line.account.code,
+            "account_name": line.account.name,
+            "debit": line.debit,
+            "credit": line.credit,
+            "movement_balance": balances[line.account_id],
+        })
+    return {
+        "period": period.name,
+        "transactions": transactions,
+        "total_receipts": total_receipts,
+        "total_payments": total_payments,
+        "net_movement": total_receipts - total_payments,
+        "opening_balance_included": False,
+    }
