@@ -37,7 +37,9 @@ def issue_invoice(invoice_id, user):
     total = sum((line.amount for line in lines), Decimal("0.00"))
     if total <= 0:
         raise ValidationError("Invoice total must be greater than zero.")
-    settings = SchoolBillingSettings.objects.select_related("receivables_account").get(school=invoice.school)
+    settings = SchoolBillingSettings.objects.select_related("receivables_account").filter(school=invoice.school).first()
+    if settings is None:
+        raise ValidationError("Configure school billing accounts before issuing invoices.")
     journal = JournalEntry.objects.create(
         school=invoice.school, reference=f"INV-{invoice.invoice_number}",
         description=f"Invoice {invoice.invoice_number} — {invoice.student}",
@@ -68,6 +70,9 @@ def record_payment(*, school, student, payment_date, method, amount, allocations
     if not allocations:
         raise ValidationError("Allocate the payment to at least one invoice.")
     invoices = {}
+    invoice_ids = [item["invoice_id"] for item in allocations]
+    if len(invoice_ids) != len(set(invoice_ids)):
+        raise ValidationError("Each invoice may appear only once in a payment allocation.")
     for item in allocations:
         invoice = Invoice.objects.select_for_update().get(pk=item["invoice_id"], school=school, student=student)
         if invoice.status not in {Invoice.Status.ISSUED, Invoice.Status.PART_PAID}:
