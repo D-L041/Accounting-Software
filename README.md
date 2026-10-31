@@ -4,29 +4,43 @@ School accounting and financial management platform by **DKL Accounting Services
 
 ## Product scope
 
-The approved target is a multi-school platform for Kenyan primary and secondary schools, with online operation and a planned offline-capable Progressive Web App.
+A multi-school accounting platform for Kenyan primary and secondary schools. The current build provides online school operations, student records, fee billing, receipts, supplier/expense recording and double-entry ledger controls. Offline-capable PWA operation is a later release phase.
 
 ## Architecture
 
 - Backend: Django + Django REST Framework
 - Database: PostgreSQL in production
 - Frontend: React + TypeScript (Vite)
-- Offline client: PWA + IndexedDB with explicit sync/conflict handling (not yet implemented)
+- Authentication: CSRF-protected Django sessions
 - Deployment target: Vercel frontend and a separately hosted Django API with managed PostgreSQL
+
+## Implemented in the development branch
+
+- School workspaces, memberships and role-scoped access (owner, admin, accountant, bursar, viewer).
+- Academic years, classes/streams and student records.
+- School-scoped chart of accounts, financial periods and journal entries.
+- Balanced double-entry posting, locked-period checks and immutable posted journals/lines.
+- Fee items, draft invoices, invoice issuance and automatic receivables/income journal posting.
+- Cash, bank and M-Pesa receipt recording, invoice allocations and balance updates.
+- Supplier directory, expense categories and draft expense entry.
+- Expense posting to the appropriate expense and cash/bank/M-Pesa accounts.
+- Secure sign-in/sign-out API and school-aware frontend workspace.
+- Frontend forms for student, class, invoice, payment, supplier and expense workflows.
+- Initial trial balance API and frontend report.
 
 ## Financial integrity principles
 
 - Every posted journal must balance.
 - Journal dates must fall inside an unlocked financial period.
 - Each journal line must contain exactly one positive debit or credit.
-- Posted journals and their lines are immutable, including bulk update/delete paths.
+- Posted journals, lines and posted expenses are immutable.
 - Corrections must use authorised reversals or adjusting entries (workflow still to be implemented).
 - Trial balance totals are calculated from posted ledger lines only.
 - No production financial figures or credentials are seeded into the repository.
 
 ## Current delivery status
 
-The repository contains the initial Django/React foundation and an in-progress ledger hardening change. This is **not yet a complete accounting application** and must not be used with live school financial data. Student fees, payment allocation, receipts, expenditure, supplier workflows, payroll, RBAC, multi-school isolation, audit-event capture, bank reconciliation, reports, offline sync, backups, deployment and release testing remain outstanding.
+This is an active development build, **not yet a production-ready accounting application**. The frontend and backend are connected, but production configuration, deployment, offline sync, audit-event capture, payroll, supplier bills/payables, bank reconciliation, advanced reports, approvals, backup/restore drills and full end-to-end acceptance testing remain outstanding. Do not use it for live school financial records until the release checklist is complete.
 
 See:
 - `docs/IMPLEMENTATION_PLAN.md` for phased delivery.
