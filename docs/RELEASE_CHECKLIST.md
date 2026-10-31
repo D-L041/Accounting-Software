@@ -4,40 +4,44 @@ A green frontend build or successful deployment alone is not sufficient for fina
 
 ## Current status
 
-- [x] Repository and initial architecture inspected.
-- [x] Ledger posting validation strengthened in the working branch.
-- [x] Posted journal and line mutation paths guarded.
+- [x] Repository architecture, core workflows and release risks documented.
+- [x] Ledger posting validation strengthened; posted journals and lines are immutable.
 - [x] Production settings reject missing secrets and non-PostgreSQL databases.
-- [x] Latest full CI run #264 passed backend tests, frontend production build and API container build for code commit `7936eea`.
-- [x] Session authentication, role permissions, school-level tenant isolation and owner/admin staff-login management implemented and tested.
-- [x] Student, class/term fee schedules, bulk draft invoicing, invoices, payment allocation and receipt workflows implemented in API and frontend.
+- [x] Session authentication, role permissions, school-level tenant isolation and owner/admin staff-login management implemented and covered by automated tests.
+- [x] Student, class/term fee schedules, bulk draft invoicing, invoice issue, payment allocation and receipt workflows implemented in API and frontend.
 - [x] Supplier directory, expense categories and ledger-posted expense workflow implemented.
-- [x] Core payroll employee, statutory calculation, payroll posting and account-mapping workflows implemented and tested; full statutory edge cases and all employee benefits remain outstanding.
 - [x] Supplier bill submission, owner/admin approval separation, posting to payables and partial/full settlement workflows implemented and tested.
-- [ ] Budgeting, procurement, purchase orders and supplier approval limits implemented.
-- [x] Trial balance API and frontend report implemented.
-- [x] Trial balance, balance sheet and income/expenditure statements implemented.
-- [x] Posted cashbook movement report implemented (period movement only; no opening balance).
-- [x] API Docker image build and database health endpoint verified in CI.
-- [x] Bank statement API, ledger matching, arithmetic validation, reconciliation lock and audit trail implemented and tested.
-- [x] Bank reconciliation frontend screen connected to existing statement/matching/reconciliation APIs; CSV import mapping and cash flow reporting remain outstanding.
-- [x] Immutable audit events for core financial posting actions and a school-scoped audit log.
-- [ ] Complete CRUD audit coverage, configurable approval limits and procurement approval workflows.
-- [x] Downloadable PDF receipts with school-level access checks.
+- [x] Category budgets, budget-versus-actual and variance monitoring implemented in API and frontend.
+- [ ] Purchase orders, supplier approval thresholds, multi-level approval limits and full procurement lifecycle remain outstanding.
+- [x] Trial balance, income/expenditure, balance sheet and cashbook reports implemented.
+- [x] Cash-flow movement report now carries forward ledger-derived opening balances and displays closing balances; it is not yet a fully classified cash-flow statement.
+- [x] Bank statement capture, ledger matching, arithmetic validation, reconciliation lock, audit trail and frontend reconciliation screen implemented and tested.
+- [ ] Bank CSV import templates, mapping and automated bank-feed integrations remain outstanding.
 - [x] Credit note and payment refund API workflows implemented and tested, including invoice balance adjustments and ledger reversals.
-- [x] Daraja STK Push initiation, persisted attempts, STK callback capture, STK Query verification and duplicate-safe ledger posting implemented.
-- [x] C2B callback capture and deduplication, school-scoped review queue, exact invoice-reference matching, independent Safaricom statement confirmation, duplicate transaction protection and normal receipt/ledger posting implemented; automated reconciliation tests added.
-- [ ] Daraja sandbox end-to-end tests, Safaricom transaction-status API verification for unattended C2B posting, school-specific paybill/shortcode mapping, callback hardening and production onboarding remain outstanding.
-- [ ] Offline data queue, sync and conflict resolution implemented and tested. The current frontend explicitly disables financial transactions offline.
-- [x] Additional tenant-isolation tests added for bank statements, supplier bills and payroll employee lists.
-- [ ] Independent security review and complete tenant-isolation/security test programme passed.
-- [ ] Backup schedule and a real restore drill verified.
-- [ ] Production API, PostgreSQL and frontend provisioned.
-- [ ] Custom domain connected and HTTPS verified.
-- [ ] End-to-end school acceptance tests passed, including supplier payables, payroll, refunds, trial balance and balance sheet reconciliation.
+- [x] Credit note and refund frontend screen implemented.
+- [x] Payroll employee, effective-dated statutory parameters, payroll calculation, posting and account mappings implemented.
+- [x] Payroll statutory review found and corrected the NSSF PAYE deductibility rule; regression tests include January/February 2026 and an independent KES 100,000 benchmark.
+- [ ] Full payroll remains incomplete: employee-declared insurance relief, mortgage interest, post-retirement medical fund, additional pension claims, tax exemption certificates, taxable benefits in kind, NITA levy, statutory schedules/exports and independent Kenyan payroll-practitioner sign-off are outstanding. See `docs/PAYROLL_STATUTORY_REVIEW.md`.
+- [x] Immutable audit events for core financial posting actions and a school-scoped audit log.
+- [ ] Complete CRUD audit coverage, approval-limit configuration and procurement approval workflows.
+- [x] Downloadable PDF receipts with school-level access checks.
+- [x] Daraja STK Push initiation, persisted attempts, callback capture, STK Query verification and duplicate-safe ledger posting implemented.
+- [x] C2B callback capture/deduplication, school-scoped review queue, exact invoice-reference matching, independent Safaricom statement confirmation, duplicate transaction protection and manual receipt/ledger posting implemented.
+- [ ] Daraja sandbox end-to-end tests, unattended transaction-status verification, school-specific Paybill/shortcode mapping, callback hardening and production onboarding remain outstanding. C2B automatic posting remains disabled.
+- [x] PWA manifest and service worker cache the application shell and static assets only.
+- [ ] No offline outbox, authenticated sync endpoint or conflict UI is implemented. Financial writes remain online-only. The safe sync boundary is documented in `docs/OFFLINE_SYNC_DESIGN.md`.
+- [x] Automated tenant-isolation tests added for bank statements, supplier bills, payroll employee lists and C2B reconciliation.
+- [ ] Independent security review, penetration testing, complete tenant-isolation programme and dependency/security scanning sign-off remain outstanding.
+- [x] PostgreSQL backup/restore procedure documented in `docs/BACKUP_RESTORE_RUNBOOK.md`.
+- [ ] Managed backup schedule, retention, monitoring and a witnessed restore drill remain outstanding.
+- [ ] Production API, managed PostgreSQL and frontend provisioned and configured.
+- [ ] Custom domain connected and HTTPS verified in the live environment.
+- [ ] End-to-end school acceptance tests passed using approved test data, including supplier payables, payroll, refunds, bank reconciliation, trial balance and balance sheet reconciliation.
+- [ ] St Stephen School administrator and accountant acceptance sign-off received.
 - [x] Initial school administrator workflow guide documented.
-- [ ] Secure production administrator handover completed.
+- [ ] Secure production administrator handover, access recovery and support ownership completed.
+- [ ] Latest CI run for the final branch head has backend, frontend and container jobs all passing. Check the live Actions status before merge.
 
 ## Release rule
 
-Do not load live student, payroll or financial records until every applicable gate above is completed and the final acceptance report is approved.
+Do not load live student, payroll or financial records until every applicable gate above is completed and the final acceptance report is approved. Do not merge or deploy this branch as a production release while any blocker above remains open.
