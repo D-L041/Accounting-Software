@@ -11,12 +11,12 @@ The infrastructure definition is in the repository root as `render.yaml`. It is 
 | Resource | Pilot size | Published monthly price |
 |---|---:|---:|
 | Render web service | 0.5 CPU / 512 MB | US$7 |
-| Render PostgreSQL | 256 MB plan | US$6 |
+| Render PostgreSQL | 256 MB plan | US$10 |
 | Render Hobby workspace | 1 member | US$0 |
 | Custom domain | Not required | US$0 |
-| **Estimated base total** | | **US$13/month** |
+| **Estimated base total** | | **US$17/month** |
 
-Prices exclude taxes, additional bandwidth, storage and any upgrades. Confirm the live price in Render before creating the Blueprint. The 256 MB database is a small pilot size only; upgrade to at least the 1 GB database tier and establish independent backups before real school financial data is loaded. Render's Hobby workspace database point-in-time recovery window is limited; do not rely on the hosting plan alone as the only backup.
+Prices checked against Render's published pricing on 31 October 2026. They exclude taxes, additional bandwidth, storage growth and any upgrades. Confirm the live price in Render before creating the Blueprint. The 256 MB database is a small pilot size only; upgrade to at least the 1 GB database tier and establish independent backups before real school financial data is loaded. Render's Hobby workspace database point-in-time recovery window is limited; do not rely on the hosting plan alone as the only backup.
 
 ## Why not split the frontend and API yet?
 
