@@ -28,7 +28,7 @@ A green frontend build or successful deployment alone is not sufficient for fina
 - [ ] Production API, PostgreSQL and frontend provisioned.
 - [ ] Custom domain connected and HTTPS verified.
 - [ ] End-to-end accounting acceptance tests passed, including trial balance and balance sheet reconciliation.
-- [ ] User documentation and secure administrator handover completed.
+- [x] Initial school administrator workflow guide documented.\n- [ ] Secure production administrator handover completed.
 
 ## Release rule
 
