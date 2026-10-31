@@ -7,4 +7,5 @@ urlpatterns = [
     path("api/schools/<int:school_pk>/ledger/", include("ledger.urls")),
     path("api/schools/<int:school_pk>/billing/", include("billing.urls")),
     path("api/schools/<int:school_pk>/expenses/", include("expenses.urls")),
+    path("api/schools/<int:school_pk>/audit/", include("auditlog.urls")),
 ]
