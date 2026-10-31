@@ -145,6 +145,7 @@ class OfflineSyncReceipt(models.Model):
     idempotency_key = models.UUIDField()
     payload_hash = models.CharField(max_length=64)
     expense = models.ForeignKey("expenses.Expense", null=True, blank=True, on_delete=models.SET_NULL, related_name="offline_sync_receipts")
+    purchase_order = models.ForeignKey("expenses.PurchaseOrder", null=True, blank=True, on_delete=models.SET_NULL, related_name="offline_sync_receipts")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
