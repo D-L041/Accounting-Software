@@ -167,14 +167,14 @@ export default function App() {
   const syncOfflineQueue = useCallback(async () => {
     if (!user || !school || !navigator.onLine) return;
     try {
-      const result = await syncExpenseDrafts(user.id, school.id, (idempotencyKey, payload) =>
+      const result = await syncExpenseDrafts(user.id, school.id, (idempotencyKey, payload, resourceType) =>
         api<{status:string}>(`/api/schools/${school.id}/offline-sync/`, {
-          method: "POST", body: JSON.stringify({ idempotency_key: idempotencyKey, payload }),
+          method: "POST", body: JSON.stringify({ idempotency_key: idempotencyKey, resource_type: resourceType, payload }),
         })
       );
       setOfflineDrafts(await listExpenseDrafts(user.id, school.id));
       if (result.synced > 0) {
-        setSuccess(`${result.synced} offline expense draft(s) synchronised. Review and post them online when ready.`);
+        setSuccess(`${result.synced} offline draft(s) synchronised. Review and post them online when ready.`);
         await loadData();
       }
     } catch (e) { setError(errorText(e)); }
