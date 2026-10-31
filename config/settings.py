@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     "accounts",
     "ledger",
     "billing",
+    "expenses",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
