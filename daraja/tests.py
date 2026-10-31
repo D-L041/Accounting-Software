@@ -110,14 +110,18 @@ class C2BReconciliationTests(TestCase):
 
     def test_duplicate_invoice_reference_across_schools_is_blocked(self):
         from django.core.exceptions import ValidationError
-        from accounts.models import School
+        from accounts.models import AcademicYear, School, Student
         from billing.models import Invoice
+        from ledger.models import FinancialPeriod
         from .services import reconcile_c2b_notification
 
         other_school = School.objects.create(name="Another School", code="c2b-other")
+        other_year = AcademicYear.objects.create(school=other_school, name="2026", starts_on="2026-01-01", ends_on="2026-12-31")
+        other_period = FinancialPeriod.objects.create(school=other_school, name="FY26", starts_on="2026-01-01", ends_on="2026-12-31")
+        other_student = Student.objects.create(school=other_school, admission_number="OTHER001", first_name="Other", last_name="Learner", admission_date="2026-01-05")
         Invoice.objects.create(
-            school=other_school, student_id=self.student.pk, academic_year_id=self.year.pk,
-            period_id=self.period.pk, invoice_number=self.notification.bill_reference,
+            school=other_school, student=other_student, academic_year=other_year,
+            period=other_period, invoice_number=self.notification.bill_reference,
             invoice_date="2026-02-01", due_date="2026-02-15",
         )
         with self.assertRaises(ValidationError):
