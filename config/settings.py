@@ -85,7 +85,7 @@ LANGUAGE_CODE = "en-us"
 TIME_ZONE = "Africa/Nairobi"
 USE_I18N = True
 USE_TZ = True
-STATIC_URL = "static/"
+STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 FRONTEND_BUILD_DIR = BASE_DIR / "frontend-dist"
 STATICFILES_DIRS = [FRONTEND_BUILD_DIR] if FRONTEND_BUILD_DIR.is_dir() else []
@@ -103,8 +103,8 @@ from corsheaders.defaults import default_headers
 CORS_ALLOW_HEADERS = [*default_headers, "x-csrftoken"]
 
 # Cross-origin frontend sessions require HTTPS and credentialed CORS.
-SESSION_COOKIE_SAMESITE = "None" if not DEBUG else "Lax"
-CSRF_COOKIE_SAMESITE = "None" if not DEBUG else "Lax"
+SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_HTTPONLY = False
 
 REST_FRAMEWORK = {
