@@ -188,8 +188,13 @@ class SupplierBill(models.Model):
         return self.amount - self.amount_paid
 
     def save(self, *args, **kwargs):
-        if self.pk and SupplierBill.objects.filter(pk=self.pk).exclude(status=self.Status.DRAFT).exists():
-            raise ValidationError("Submitted, approved or posted supplier bills cannot be edited.")
+        if self.pk:
+            existing = SupplierBill.objects.get(pk=self.pk)
+            if existing.status != self.Status.DRAFT:
+                allowed = {"status", "submitted_by", "submitted_at", "approved_by", "approved_at", "journal_entry"}
+                update_fields = set(kwargs.get("update_fields") or [])
+                if not update_fields or not update_fields.issubset(allowed):
+                    raise ValidationError("Submitted, approved or posted supplier bills cannot be edited.")
         self.full_clean()
         return super().save(*args, **kwargs)
 
