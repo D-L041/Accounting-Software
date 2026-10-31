@@ -89,3 +89,10 @@ class SchoolTenantAPITests(TestCase):
             format="json",
         )
         self.assertEqual(response.status_code, 403)
+
+    def test_read_only_member_cannot_delete_student(self):
+        SchoolMembership.objects.filter(school=self.school_a, user=self.user_a).update(role="VIEWER")
+        self.client.force_authenticate(self.user_a)
+        response = self.client.delete(f"/api/schools/{self.school_a.pk}/students/{self.student_a.pk}/")
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(Student.objects.filter(pk=self.student_a.pk).exists())
