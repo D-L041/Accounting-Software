@@ -4,6 +4,7 @@ from rest_framework.routers import DefaultRouter
 from .views import AcademicYearViewSet, ClassRoomViewSet, SchoolViewSet, StudentViewSet
 from .auth_views import CsrfView, CurrentUserView, LoginView, LogoutView
 from .member_views import SchoolMemberDetailView, SchoolMemberListCreateView
+from .offline_sync import OfflineExpenseSyncView
 
 router = DefaultRouter()
 router.register("schools", SchoolViewSet, basename="school")
@@ -24,6 +25,7 @@ urlpatterns = [
     path("auth/login/", LoginView.as_view(), name="auth-login"),
     path("auth/me/", CurrentUserView.as_view(), name="auth-me"),
     path("auth/logout/", LogoutView.as_view(), name="auth-logout"),
+    path("schools/<int:school_pk>/offline-sync/", OfflineExpenseSyncView.as_view(), name="offline-expense-sync"),
     path("", include(router.urls)),
     path("schools/<int:school_pk>/", include((school_patterns, "school-scoped"))),
 ]
