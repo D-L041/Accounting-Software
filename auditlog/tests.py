@@ -46,3 +46,10 @@ class AuditLogTests(TestCase):
         response = client.get(f"/api/schools/{self.school.pk}/audit/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 1)
+
+    def test_viewer_cannot_read_audit_log(self):
+        SchoolMembership.objects.filter(school=self.school, user=self.user).update(role=SchoolMembership.Role.VIEWER)
+        client = APIClient()
+        client.force_authenticate(self.user)
+        response = client.get(f"/api/schools/{self.school.pk}/audit/")
+        self.assertEqual(response.status_code, 403)
