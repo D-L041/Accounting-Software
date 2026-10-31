@@ -14,7 +14,7 @@ import PayrollPanel from "./PayrollPanel";
 import ProcurementPanel from "./ProcurementPanel";
 import BudgetPanel from "./BudgetPanel";
 import { schoolToday } from "./formatters";
-import { discardExpenseDraft, listExpenseDrafts, queueExpenseDraft, syncExpenseDrafts, OfflineExpensePayload } from "./offlineOutbox";
+import { listExpenseDrafts, queueExpenseDraft, syncExpenseDrafts, type OfflineExpensePayload } from "./offlineOutbox";
 
 type Row = Record<string, any>;
 const nav = [
@@ -110,22 +110,6 @@ export default function App() {
     catch (e) { setError(errorText(e)); }
   }, [user, school]);
 
-  const syncOfflineQueue = useCallback(async () => {
-    if (!user || !school || !navigator.onLine) return;
-    try {
-      const result = await syncExpenseDrafts(user.id, school.id, (idempotencyKey, payload) =>
-        api<{status:string}>(`/api/schools/${school.id}/offline-sync/`, {
-          method: "POST", body: JSON.stringify({ idempotency_key: idempotencyKey, payload }),
-        })
-      );
-      setOfflineDrafts(await listExpenseDrafts(user.id, school.id));
-      if (result.synced > 0) {
-        setSuccess(`${result.synced} offline expense draft(s) synchronised. Review and post them online when ready.`);
-        await loadData();
-      }
-    } catch (e) { setError(errorText(e)); }
-  }, [user, school, loadData]);
-
   const refreshSession = useCallback(async () => {
     try {
       const response = await api<{user:User}>("/api/auth/me/");
@@ -144,8 +128,6 @@ export default function App() {
     return () => { window.removeEventListener("online", online); window.removeEventListener("offline", offline); };
   }, []);
   useEffect(() => { void refreshOfflineDrafts(); }, [refreshOfflineDrafts]);
-  useEffect(() => { if (isOnline && user && school) void syncOfflineQueue(); }, [isOnline, user, school, syncOfflineQueue]);
-
   const loadData = useCallback(async () => {
     if (!school) return;
     setLoading(true); setError("");
@@ -181,6 +163,23 @@ export default function App() {
     } catch(e) { setError(errorText(e)); }
     finally { setLoading(false); }
   }, [school,schoolBase,active]);
+
+  const syncOfflineQueue = useCallback(async () => {
+    if (!user || !school || !navigator.onLine) return;
+    try {
+      const result = await syncExpenseDrafts(user.id, school.id, (idempotencyKey, payload) =>
+        api<{status:string}>(`/api/schools/${school.id}/offline-sync/`, {
+          method: "POST", body: JSON.stringify({ idempotency_key: idempotencyKey, payload }),
+        })
+      );
+      setOfflineDrafts(await listExpenseDrafts(user.id, school.id));
+      if (result.synced > 0) {
+        setSuccess(`${result.synced} offline expense draft(s) synchronised. Review and post them online when ready.`);
+        await loadData();
+      }
+    } catch (e) { setError(errorText(e)); }
+  }, [user, school, loadData]);
+  useEffect(() => { if (isOnline && user && school) void syncOfflineQueue(); }, [isOnline, user, school, syncOfflineQueue]);
 
   useEffect(() => { if(user && school) void loadData(); }, [user,school,active,loadData]);
   useEffect(() => {
