@@ -4,7 +4,7 @@ from rest_framework import serializers
 
 from accounts.models import Student
 from ledger.models import Account
-from .models import FeeItem, Invoice, InvoiceLine, Payment, SchoolBillingSettings
+from .models import FeeItem, FeeSchedule, FeeScheduleLine, Invoice, InvoiceLine, Payment, SchoolBillingSettings
 
 
 class FeeItemSerializer(serializers.ModelSerializer):
@@ -53,8 +53,8 @@ class InvoiceSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Invoice
-        fields = ["id", "student", "student_name", "academic_year", "period", "invoice_number", "invoice_date", "due_date", "status", "notes", "lines", "line_items", "total_amount", "amount_paid", "balance", "journal_entry", "created_at"]
-        read_only_fields = ["id", "invoice_number", "status", "journal_entry", "created_at", "total_amount", "amount_paid", "balance", "line_items"]
+        fields = ["id", "student", "student_name", "academic_year", "period", "invoice_number", "invoice_date", "due_date", "status", "notes", "lines", "line_items", "total_amount", "amount_paid", "balance", "journal_entry", "fee_schedule", "created_at"]
+        read_only_fields = ["id", "invoice_number", "status", "journal_entry", "fee_schedule", "created_at", "total_amount", "amount_paid", "balance", "line_items"]
 
     def get_line_items(self, obj):
         return [{"id": line.id, "fee_item": line.fee_item_id, "fee_item_name": line.fee_item.name, "description": line.description, "quantity": line.quantity, "unit_amount": line.unit_amount, "amount": line.amount} for line in obj.lines.select_related("fee_item")]
@@ -136,3 +136,87 @@ class PaymentSerializer(serializers.ModelSerializer):
             school=self.context["school"], user=self.context["request"].user,
             allocations=allocations, **validated_data,
         )
+
+
+
+class FeeScheduleLineInputSerializer(serializers.Serializer):
+    fee_item = serializers.PrimaryKeyRelatedField(queryset=FeeItem.objects.all())
+    amount = serializers.DecimalField(max_digits=14, decimal_places=2, min_value=Decimal("0.01"))
+
+    def validate_fee_item(self, value):
+        if value.school_id != self.context["school"].id or not value.is_active:
+            raise serializers.ValidationError("Choose an active fee item belonging to this school.")
+        return value
+
+
+class FeeScheduleSerializer(serializers.ModelSerializer):
+    lines = FeeScheduleLineInputSerializer(many=True, write_only=True)
+    line_items = serializers.SerializerMethodField()
+    student_count = serializers.SerializerMethodField()
+    generated_invoice_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FeeSchedule
+        fields = [
+            "id", "academic_year", "classroom", "period", "term_name",
+            "invoice_date", "due_date", "is_active", "lines", "line_items",
+            "student_count", "generated_invoice_count", "created_at",
+        ]
+        read_only_fields = ["id", "line_items", "student_count", "generated_invoice_count", "created_at"]
+
+    def validate(self, attrs):
+        school = self.context["school"]
+        academic_year = attrs.get("academic_year", getattr(self.instance, "academic_year", None))
+        classroom = attrs.get("classroom", getattr(self.instance, "classroom", None))
+        period = attrs.get("period", getattr(self.instance, "period", None))
+        if academic_year and academic_year.school_id != school.id:
+            raise serializers.ValidationError({"academic_year": "Academic year must belong to this school."})
+        if classroom and (classroom.school_id != school.id or classroom.academic_year_id != getattr(academic_year, "id", None)):
+            raise serializers.ValidationError({"classroom": "Class must belong to the selected school and academic year."})
+        if period and period.school_id != school.id:
+            raise serializers.ValidationError({"period": "Financial period must belong to this school."})
+        invoice_date = attrs.get("invoice_date", getattr(self.instance, "invoice_date", None))
+        due_date = attrs.get("due_date", getattr(self.instance, "due_date", None))
+        if invoice_date and due_date and due_date < invoice_date:
+            raise serializers.ValidationError({"due_date": "Due date cannot precede invoice date."})
+        for line in attrs.get("lines", []):
+            if line["fee_item"].school_id != school.id or not line["fee_item"].is_active:
+                raise serializers.ValidationError({"lines": "All fee items must be active and belong to this school."})
+        if self.instance and self.instance.generated_invoices.exists():
+            raise serializers.ValidationError("A fee schedule cannot be changed after invoices have been generated.")
+        return attrs
+
+    def get_line_items(self, obj):
+        return [
+            {"id": line.id, "fee_item": line.fee_item_id, "fee_item_name": line.fee_item.name, "amount": line.amount}
+            for line in obj.lines.select_related("fee_item")
+        ]
+
+    def get_student_count(self, obj):
+        from accounts.models import Student
+        return Student.objects.filter(school=obj.school, classroom=obj.classroom, status=Student.Status.ACTIVE).count()
+
+    def get_generated_invoice_count(self, obj):
+        return obj.generated_invoices.count()
+
+    def create(self, validated_data):
+        from django.db import transaction
+        lines = validated_data.pop("lines")
+        with transaction.atomic():
+            schedule = FeeSchedule.objects.create(school=self.context["school"], **validated_data)
+            for line in lines:
+                FeeScheduleLine.objects.create(schedule=schedule, **line)
+        return schedule
+
+    def update(self, instance, validated_data):
+        from django.db import transaction
+        lines = validated_data.pop("lines", None)
+        with transaction.atomic():
+            for key, value in validated_data.items():
+                setattr(instance, key, value)
+            instance.save()
+            if lines is not None:
+                instance.lines.all().delete()
+                for line in lines:
+                    FeeScheduleLine.objects.create(schedule=instance, **line)
+        return instance
