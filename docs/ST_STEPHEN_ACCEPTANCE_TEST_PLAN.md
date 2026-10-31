@@ -70,7 +70,7 @@ Record the release commit, environment, date, test operator, school representati
 4. Approve, post and partially settle a supplier bill; confirm payable balances and settlement journals.
 5. Attempt cross-school supplier/account/period references and duplicate supplier invoice references.
 6. Create a category budget and compare actual posted expenditure against budget.
-7. Record procurement gaps separately: purchase orders, multi-level approval limits and full purchasing lifecycle are not yet implemented.
+7. Record the remaining procurement gap: goods-received matching, supplier invoice matching to approved purchase orders and full purchasing lifecycle review are not yet implemented.
 
 **Pass evidence:** expense register, supplier bill approvals, payable ageing/balance, budget variance report and unresolved procurement-gap log.
 
@@ -92,8 +92,10 @@ Use synthetic employees and compare the output independently with a Kenyan payro
 1. Verify the effective NSSF rule for the month, including January/February 2026 rate transition.
 2. Test the documented KES 50,000 and KES 100,000 benchmark cases.
 3. Confirm employee NSSF, SHIF and Housing Levy, PAYE and net pay; separately confirm NSSF, Housing Levy and NITA employer costs, including KES 50 NITA per active employee, without deducting NITA from employee net pay.
-4. Confirm payroll posting creates a balanced journal and the run becomes immutable.
-5. Verify remittance schedules, insurance relief, mortgage interest, post-retirement medical fund, additional pension, exemptions, taxable benefits, NITA and exports before marking payroll production-ready.
+4. Verify insurance relief (15% of qualifying premiums, monthly cap KES 5,000), mortgage-interest deduction (cap KES 30,000/month), post-retirement medical fund (cap KES 15,000/month), additional registered pension within the KES 30,000 aggregate pension limit after NSSF, and administrator-verified supporting-document references.
+5. Verify a valid, administrator-authenticated disability exemption certificate applies the first KES 150,000 monthly income exemption only during its validity dates; test expired and unverified certificates.
+6. Confirm payroll posting creates a balanced journal and the run becomes immutable; additional pension requires its own liability account.
+7. Download and reconcile payroll register and PAYE, NSSF, SHIF, AHL, PENSION and NITA CSV working schedules. These are not official KRA P10/iTax upload files; verify that distinction and record the remaining official-format gap.
 
 **Pass evidence:** signed independent payroll comparison and statutory gap sign-off. Payroll must not be used for live pay until all items in PAYROLL_STATUTORY_REVIEW.md are resolved.
 
@@ -113,14 +115,15 @@ Use synthetic employees and compare the output independently with a Kenyan payro
 1. Install the PWA and verify the static application shell opens offline.
 2. Confirm authenticated API responses are not cached and no pupil, employee, payroll or ledger data is persisted in the offline outbox.
 3. Load approved reference lists while online, disconnect, capture a synthetic expense draft and confirm it is encrypted in IndexedDB and visibly marked as pending.
-4. Reconnect and confirm the sync endpoint creates one DRAFT expense only; confirm no journal entry, payment or receipt is created.
-5. Deliver the same idempotency key twice and confirm the second delivery returns the original result without a duplicate expense.
-6. Reuse an idempotency key with changed payload data and confirm a conflict; substitute a category or period from another school and confirm rejection.
-7. Confirm viewer role, revoked membership and inactive school cannot synchronise drafts.
-8. Confirm the user can inspect and discard a pending local draft, and that signing out warns about unsynchronised drafts.
-9. Confirm invoice issue, payment receipt, refund, payroll approval, bank reconciliation, M-Pesa and journal posting remain blocked offline.
-10. Run the automated Python/npm dependency audits and tenant-isolation tests.
-11. Complete independent penetration testing, authorization review, backup restore drill and incident-response exercise.
+4. While offline, create both an expense draft and a purchase-order draft; confirm both are encrypted in IndexedDB and visibly queued.
+5. Reconnect and confirm the sync endpoint creates one DRAFT expense and one DRAFT purchase order only; confirm no journal, payment, receipt, order submission or approval is created.
+6. Deliver the same idempotency key twice for each draft type and confirm the second delivery returns the original result without creating duplicates.
+7. Reuse an idempotency key with changed payload data and confirm HTTP 409; substitute a supplier or period from another school and confirm rejection.
+8. Confirm viewer role, revoked membership and inactive school cannot synchronise drafts; confirm server 4xx rejections remain in needs-review state and are not silently deleted.
+9. Confirm the user can discard a pending local draft, and that signing out warns about unsynchronised drafts.
+10. Confirm invoice issue, payment receipt, refund, payroll approval, bank reconciliation, M-Pesa and journal posting remain blocked offline.
+11. Run the automated Python/npm dependency audits, PostgreSQL CI backup/restore smoke test and tenant-isolation tests.
+12. Complete independent penetration testing, authorization review, witnessed production backup restore and incident-response exercise.
 
 **Pass evidence:** offline test log, duplicate/conflict test results, CI run, security report and witnessed restore report. Full offline operation is not accepted until all modules have their own approved offline design and test coverage.
 
