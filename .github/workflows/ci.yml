@@ -46,6 +46,18 @@ jobs:
           SECRET_KEY: ci-only-not-a-secret
           DEBUG: "True"
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/ststephen
+      - name: Verify PostgreSQL backup and restore in an isolated CI database
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+          pg_dump --format=custom --no-owner --no-privileges --file=/tmp/precious-schoolbooks-ci.dump "$DATABASE_URL"
+          createdb --host=localhost --username=postgres precious_restore_test
+          pg_restore --host=localhost --username=postgres --dbname=precious_restore_test --no-owner --no-privileges /tmp/precious-schoolbooks-ci.dump
+          migration_count=$(psql "postgres://postgres:postgres@localhost:5432/precious_restore_test" --tuples-only --no-align --command="SELECT COUNT(*) FROM django_migrations")
+          test "$migration_count" -gt 0
+        env:
+          PGPASSWORD: postgres
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/ststephen
       - run: pytest
         env:
           SECRET_KEY: ci-only-not-a-secret
