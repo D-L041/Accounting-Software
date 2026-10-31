@@ -40,7 +40,7 @@ A green frontend build or successful deployment alone is not sufficient for fina
 - [ ] St Stephen School administrator and accountant acceptance sign-off received.
 - [x] Initial school administrator workflow guide documented.
 - [ ] Secure production administrator handover, access recovery and support ownership completed.
-- [ ] Latest CI run for the final branch head has backend, frontend and container jobs all passing. Check the live Actions status before merge.
+- [x] CI run `41226441357` for final code commit `178860e` passed backend (85 tests), frontend production build and API container build. Re-run CI after any subsequent code changes and verify the final branch head before merge.
 
 ## Release rule
 
