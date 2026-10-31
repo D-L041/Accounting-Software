@@ -17,6 +17,13 @@ class FinancialPeriodSerializer(serializers.ModelSerializer):
         fields = ["id", "name", "starts_on", "ends_on", "is_locked"]
         read_only_fields = ["id", "is_locked"]
 
+    def validate(self, attrs):
+        starts_on = attrs.get("starts_on", getattr(self.instance, "starts_on", None))
+        ends_on = attrs.get("ends_on", getattr(self.instance, "ends_on", None))
+        if starts_on and ends_on and ends_on < starts_on:
+            raise serializers.ValidationError({"ends_on": "Financial period end must not precede its start."})
+        return attrs
+
 
 class JournalLineSerializer(serializers.ModelSerializer):
     account_code = serializers.CharField(source="account.code", read_only=True)
