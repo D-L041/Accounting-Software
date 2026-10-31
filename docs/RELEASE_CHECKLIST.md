@@ -38,6 +38,7 @@ A green frontend build or successful deployment alone is not sufficient for fina
 - [ ] Pin frontend dependency versions and commit `package-lock.json`; add a reproducible Python dependency lock before production release.
 - [ ] Production API, managed PostgreSQL and frontend provisioned and configured.
 - [ ] Custom domain connected and HTTPS verified in the live environment.
+- [x] St Stephen School acceptance test plan and sign-off sheet documented in `docs/ST_STEPHEN_ACCEPTANCE_TEST_PLAN.md`.
 - [ ] End-to-end school acceptance tests passed using approved test data, including supplier payables, payroll, refunds, bank reconciliation, trial balance and balance sheet reconciliation.
 - [ ] St Stephen School administrator and accountant acceptance sign-off received.
 - [x] Initial school administrator workflow guide documented.
