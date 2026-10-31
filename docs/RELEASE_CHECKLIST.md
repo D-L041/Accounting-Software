@@ -11,9 +11,14 @@ A green frontend build or successful deployment alone is not sufficient for fina
 - [x] Latest backend and frontend CI run observed and passed for the verified baseline (re-run required for subsequent commits).
 - [x] Session authentication, role permissions and school-level tenant isolation implemented and tested.
 - [x] Student, fees, invoices, payment allocation and receipt workflows implemented in API and frontend.
-- [x] Supplier directory, expense categories and ledger-posted expense workflow implemented.\n- [ ] Payroll, budgeting, supplier bills/payables and procurement workflows implemented.
-- [x] Trial balance API and frontend report implemented.\n- [x] Trial balance, balance sheet and income/expenditure statements implemented.\n- [x] Posted cashbook movement report implemented (period movement only; no opening balance).\n- [ ] Bank reconciliation and cash flow reporting implemented.
-- [x] Immutable audit events for core financial posting actions and a school-scoped audit log.\n- [ ] Complete CRUD audit coverage and financial approval workflows.
+- [x] Supplier directory, expense categories and ledger-posted expense workflow implemented.
+- [ ] Payroll, budgeting, supplier bills/payables and procurement workflows implemented.
+- [x] Trial balance API and frontend report implemented.
+- [x] Trial balance, balance sheet and income/expenditure statements implemented.
+- [x] Posted cashbook movement report implemented (period movement only; no opening balance).
+- [ ] Bank reconciliation and cash flow reporting implemented.
+- [x] Immutable audit events for core financial posting actions and a school-scoped audit log.
+- [ ] Complete CRUD audit coverage and financial approval workflows.
 - [ ] Offline data queue, sync and conflict resolution implemented and tested.
 - [ ] Independent security review and expanded tenant-isolation tests passed.
 - [ ] Backup schedule and a real restore drill verified.
