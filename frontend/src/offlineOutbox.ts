@@ -140,8 +140,9 @@ export async function syncExpenseDrafts(
       if (draft.state === "needs_attention") continue;
       try {
         const plaintext = await crypto.subtle.decrypt({ name: "AES-GCM", iv: new Uint8Array(draft.iv) }, saved.key, draft.ciphertext);
-        const payload = JSON.parse(new TextDecoder().decode(plaintext)) as OfflineExpensePayload;
-        const result = await send(draft.idempotencyKey, payload);
+        const payload = JSON.parse(new TextDecoder().decode(plaintext)) as OfflineExpensePayload | OfflinePurchaseOrderPayload;
+        const resourceType = draft.resourceType || "expense";
+        const result = await send(draft.idempotencyKey, payload, resourceType);
         if (!["accepted", "already_applied"].includes(result.status)) {
           await markNeedsAttention(db, draft, "The server returned an unresolved sync state.");
           continue;
