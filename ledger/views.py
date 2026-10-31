@@ -1,7 +1,8 @@
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.shortcuts import get_object_or_404
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 
 from accounts.models import School, SchoolMembership
@@ -60,6 +61,15 @@ class AccountViewSet(SchoolLedgerViewSet):
     def get_queryset(self):
         return Account.objects.filter(school=self.get_school()).order_by("code")
 
+    def perform_update(self, serializer):
+        self.check_write_role()
+        account = serializer.instance
+        used_in_posted_journal = account.journalline_set.filter(entry__posted=True).exists()
+        changed_fields = set(serializer.validated_data) - {"is_active"}
+        if used_in_posted_journal and changed_fields:
+            raise PermissionDenied("An account used in posted journals cannot have its code, name or category changed.")
+        serializer.save()
+
 
 class FinancialPeriodViewSet(SchoolLedgerViewSet):
     serializer_class = FinancialPeriodSerializer
@@ -73,6 +83,14 @@ class FinancialPeriodViewSet(SchoolLedgerViewSet):
         if serializer.instance.is_locked:
             raise PermissionDenied("A locked financial period cannot be edited.")
         serializer.save()
+
+    @action(detail=True, methods=["post"])
+    def lock_period(self, request, school_pk=None, pk=None):
+        self.check_write_role()
+        period = self.get_object()
+        period.is_locked = True
+        period.save(update_fields=["is_locked"])
+        return Response(self.get_serializer(period).data, status=status.HTTP_200_OK)
 
 
 class JournalEntryViewSet(SchoolLedgerViewSet):
@@ -88,5 +106,8 @@ class JournalEntryViewSet(SchoolLedgerViewSet):
     def post_entry(self, request, school_pk=None, pk=None):
         self.check_write_role()
         entry = self.get_object()
-        entry.post()
+        try:
+            entry.post()
+        except DjangoValidationError as exc:
+            raise ValidationError(exc.messages) from exc
         return Response(self.get_serializer(entry).data, status=status.HTTP_200_OK)
