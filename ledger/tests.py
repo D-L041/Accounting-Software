@@ -212,3 +212,31 @@ class JournalPostingTests(TestCase):
             format="json",
         )
         self.assertEqual(response.status_code, 403)
+
+
+class TrialBalanceApiTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="report-user", password="not-for-production")
+        self.school = School.objects.create(name="Report School", code="report-school")
+        SchoolMembership.objects.create(school=self.school, user=self.user, role="ACCOUNTANT")
+        self.period = FinancialPeriod.objects.create(school=self.school, name="FY26", starts_on="2026-01-01", ends_on="2026-12-31")
+        self.cash = Account.objects.create(school=self.school, code="1000", name="Cash", category="ASSET")
+        self.income = Account.objects.create(school=self.school, code="4000", name="Fees", category="INCOME")
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def test_trial_balance_api_returns_posted_activity(self):
+        entry = JournalEntry.objects.create(school=self.school, reference="TB-001", description="Test", period=self.period, created_by=self.user)
+        JournalLine.objects.create(entry=entry, account=self.cash, debit=Decimal("125.00"))
+        JournalLine.objects.create(entry=entry, account=self.income, credit=Decimal("125.00"))
+        entry.post()
+        response = self.client.get(f"/api/schools/{self.school.pk}/ledger/reports/trial-balance/?period={self.period.pk}")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["total_debits"], Decimal("125.00"))
+        self.assertTrue(response.data["is_balanced"])
+
+    def test_trial_balance_api_rejects_other_school_period(self):
+        other = School.objects.create(name="Other Report School", code="other-report-school")
+        other_period = FinancialPeriod.objects.create(school=other, name="FY26", starts_on="2026-01-01", ends_on="2026-12-31")
+        response = self.client.get(f"/api/schools/{self.school.pk}/ledger/reports/trial-balance/?period={other_period.pk}")
+        self.assertEqual(response.status_code, 404)
