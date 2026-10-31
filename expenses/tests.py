@@ -191,3 +191,55 @@ class SupplierBillWorkflowTests(TestCase):
         )
         self.assertEqual(response.status_code, 404)
 
+
+
+class ExpenseBudgetTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="budget-owner", password="test-password")
+        self.school = School.objects.create(name="Budget School", code="budget-school")
+        SchoolMembership.objects.create(school=self.school, user=self.user, role="OWNER")
+        self.period = FinancialPeriod.objects.create(school=self.school, name="FY26", starts_on="2026-01-01", ends_on="2026-12-31")
+        self.expense_account = Account.objects.create(school=self.school, code="5200", name="Repairs", category="EXPENSE")
+        self.category = ExpenseCategory.objects.create(school=self.school, code="REPAIRS", name="Repairs", expense_account=self.expense_account)
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def test_budget_api_returns_budget_actual_and_variance(self):
+        from expenses.models import ExpenseBudget, Supplier, SupplierBill
+        budget = self.client.post(
+            f"/api/schools/{self.school.pk}/expenses/budgets/",
+            {"period": self.period.pk, "category": self.category.pk, "budget_amount": "100000.00", "notes": "Term repairs"},
+            format="json",
+        )
+        self.assertEqual(budget.status_code, 201, budget.data)
+        Expense.objects.create(
+            school=self.school, category=self.category, period=self.period,
+            expense_number="EXP-000001", expense_date="2026-02-01",
+            description="Minor repair", amount="15000.00", payment_method="CASH",
+            status=Expense.Status.POSTED,
+        )
+        supplier = Supplier.objects.create(school=self.school, name="Budget supplier")
+        payable = Account.objects.create(school=self.school, code="2000", name="Trade Payables", category="LIABILITY")
+        SupplierBill.objects.create(
+            school=self.school, supplier=supplier, category=self.category,
+            period=self.period, payable_account=payable, bill_number="BILL-000001",
+            supplier_invoice_number="SUP-001", bill_date="2026-02-02", due_date="2026-02-28",
+            description="Repair parts", amount="25000.00", status=SupplierBill.Status.POSTED,
+            created_by=self.user,
+        )
+        response = self.client.get(f"/api/schools/{self.school.pk}/expenses/budgets/?period={self.period.pk}")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data[0]["actual_amount"], "40000.00")
+        self.assertEqual(response.data[0]["variance"], "60000.00")
+        self.assertEqual(response.data[0]["utilisation_percent"], 40.0)
+
+    def test_budget_cannot_reference_another_school_category(self):
+        other = School.objects.create(name="Other Budget School", code="other-budget-school")
+        other_account = Account.objects.create(school=other, code="5200", name="Other Repairs", category="EXPENSE")
+        other_category = ExpenseCategory.objects.create(school=other, code="REPAIRS", name="Repairs", expense_account=other_account)
+        response = self.client.post(
+            f"/api/schools/{self.school.pk}/expenses/budgets/",
+            {"period": self.period.pk, "category": other_category.pk, "budget_amount": "1000.00"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
