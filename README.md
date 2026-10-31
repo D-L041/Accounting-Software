@@ -1,27 +1,38 @@
-# St Stephen School Accounting & Financial Management System
+# Precious SchoolBooks
 
-A production-oriented school finance platform built to the approved engineering specification.
+School accounting and financial management platform by **DKL Accounting Services**, with **St Stephen School** as the initial school workspace.
+
+## Product scope
+
+The approved target is a multi-school platform for Kenyan primary and secondary schools, with online operation and a planned offline-capable Progressive Web App.
 
 ## Architecture
 
 - Backend: Django + Django REST Framework
-- Database: PostgreSQL
+- Database: PostgreSQL in production
 - Frontend: React + TypeScript (Vite)
-- Offline client: PWA + IndexedDB with explicit sync/conflict handling
-- Deployment: frontend on Vercel; Django API on a Python application host; managed PostgreSQL
+- Offline client: PWA + IndexedDB with explicit sync/conflict handling (not yet implemented)
+- Deployment target: Vercel frontend and a separately hosted Django API with managed PostgreSQL
 
 ## Financial integrity principles
 
-- All posted transactions use balanced double-entry journals.
-- Posted records are immutable; corrections use reversals and adjusting entries.
-- Financial writes are atomic and protected by database constraints.
-- All sensitive actions are permission-checked and audited.
+- Every posted journal must balance.
+- Journal dates must fall inside an unlocked financial period.
+- Each journal line must contain exactly one positive debit or credit.
+- Posted journals and their lines are immutable, including bulk update/delete paths.
+- Corrections must use authorised reversals or adjusting entries (workflow still to be implemented).
+- Trial balance totals are calculated from posted ledger lines only.
 - No production financial figures or credentials are seeded into the repository.
 
-## Project status
+## Current delivery status
 
-Repository initialized. Implementation, automated tests, security verification, infrastructure provisioning, and production deployment are not yet complete. Do not use with live school financial data until the release acceptance checklist is passed.
+The repository contains the initial Django/React foundation and an in-progress ledger hardening change. This is **not yet a complete accounting application** and must not be used with live school financial data. Student fees, payment allocation, receipts, expenditure, supplier workflows, payroll, RBAC, multi-school isolation, audit-event capture, bank reconciliation, reports, offline sync, backups, deployment and release testing remain outstanding.
+
+See:
+- `docs/IMPLEMENTATION_PLAN.md` for phased delivery.
+- `docs/DEVELOPMENT.md` for local setup.
+- `docs/RELEASE_CHECKLIST.md` for production acceptance gates.
 
 ## Local development
 
-See `docs/DEVELOPMENT.md` for the planned setup and `docs/IMPLEMENTATION_PLAN.md` for phased delivery.
+Use Python 3.12+, PostgreSQL 16+ and Node.js 22+. Copy `.env.example` to `.env`, set local-only credentials, install dependencies, run migrations and execute the test suite. Never use real student or payroll data in a development environment.
