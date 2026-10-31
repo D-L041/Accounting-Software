@@ -83,6 +83,7 @@ class Invoice(models.Model):
     due_date = models.DateField()
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.DRAFT)
     journal_entry = models.OneToOneField(JournalEntry, null=True, blank=True, on_delete=models.PROTECT, related_name="source_invoice")
+    fee_schedule = models.ForeignKey("FeeSchedule", null=True, blank=True, on_delete=models.PROTECT, related_name="generated_invoices")
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -90,6 +91,7 @@ class Invoice(models.Model):
         ordering = ["-invoice_date", "-id"]
         constraints = [
             models.UniqueConstraint(fields=["school", "invoice_number"], name="unique_invoice_number_school"),
+            models.UniqueConstraint(fields=["school", "student", "fee_schedule"], condition=Q(fee_schedule__isnull=False), name="unique_student_fee_schedule_invoice"),
             models.CheckConstraint(condition=Q(due_date__gte=models.F("invoice_date")), name="invoice_due_after_issue"),
         ]
 
@@ -102,6 +104,8 @@ class Invoice(models.Model):
             errors["academic_year"] = "Academic year must belong to this school."
         if self.period_id and self.period.school_id != self.school_id:
             errors["period"] = "Financial period must belong to this school."
+        if self.fee_schedule_id and (self.fee_schedule.school_id != self.school_id or self.fee_schedule.classroom_id != self.student.classroom_id):
+            errors["fee_schedule"] = "Fee schedule must belong to the same school and student class."
         if errors:
             raise ValidationError(errors)
 
@@ -209,6 +213,67 @@ class PaymentAllocation(models.Model):
         if self.payment_id and self.invoice_id:
             if self.payment.school_id != self.invoice.school_id or self.payment.student_id != self.invoice.student_id:
                 raise ValidationError("Payment and invoice must belong to the same school and student.")
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+
+class FeeSchedule(models.Model):
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="fee_schedules")
+    academic_year = models.ForeignKey("accounts.AcademicYear", on_delete=models.PROTECT, related_name="fee_schedules")
+    classroom = models.ForeignKey("accounts.ClassRoom", on_delete=models.PROTECT, related_name="fee_schedules")
+    period = models.ForeignKey(FinancialPeriod, on_delete=models.PROTECT, related_name="fee_schedules")
+    term_name = models.CharField(max_length=40)
+    invoice_date = models.DateField()
+    due_date = models.DateField()
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-academic_year__starts_on", "classroom__name", "term_name"]
+        constraints = [
+            models.UniqueConstraint(fields=["school", "academic_year", "classroom", "term_name"], name="unique_class_term_fee_schedule"),
+            models.CheckConstraint(condition=Q(due_date__gte=models.F("invoice_date")), name="fee_schedule_due_after_invoice"),
+        ]
+
+    def clean(self):
+        super().clean()
+        errors = {}
+        if self.academic_year_id and self.academic_year.school_id != self.school_id:
+            errors["academic_year"] = "Academic year must belong to this school."
+        if self.classroom_id and (self.classroom.school_id != self.school_id or self.classroom.academic_year_id != self.academic_year_id):
+            errors["classroom"] = "Class must belong to this school and academic year."
+        if self.period_id and self.period.school_id != self.school_id:
+            errors["period"] = "Financial period must belong to this school."
+        if self.due_date < self.invoice_date:
+            errors["due_date"] = "Due date cannot precede invoice date."
+        if errors:
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.classroom} — {self.term_name} — {self.academic_year}"
+
+
+class FeeScheduleLine(models.Model):
+    schedule = models.ForeignKey(FeeSchedule, on_delete=models.CASCADE, related_name="lines")
+    fee_item = models.ForeignKey(FeeItem, on_delete=models.PROTECT, related_name="schedule_lines")
+    amount = models.DecimalField(max_digits=14, decimal_places=2)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["schedule", "fee_item"], name="unique_fee_item_per_schedule"),
+            models.CheckConstraint(condition=Q(amount__gt=0), name="fee_schedule_line_amount_positive"),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.fee_item_id and self.schedule_id and self.fee_item.school_id != self.schedule.school_id:
+            raise ValidationError({"fee_item": "Fee item must belong to the fee schedule's school."})
 
     def save(self, *args, **kwargs):
         self.full_clean()
