@@ -140,6 +140,14 @@ export default function App() {
     api<Row[]>(`/api/schools/${school.id}/audit/`).then(setAuditRows).catch(e=>setError(errorText(e)));
   },[active,school]);
   useEffect(() => {
+    if(active!=="Cashbook & Banks" || !school) return;
+    const periodId = cashbookPeriod || String(periods[0]?.id || "");
+    if(!periodId) { setCashbook(null); return; }
+    if(!cashbookPeriod) setCashbookPeriod(periodId);
+    api<Row>("/api/schools/" + school.id + "/ledger/reports/cashbook/?period=" + periodId)
+      .then(setCashbook).catch(e=>setError(errorText(e)));
+  },[active,school,periods,cashbookPeriod]);
+  useEffect(() => {
     if(active!=="Reports" || !school) return;
     const periodId = reportPeriod || String(periods[0]?.id || "");
     if(!periodId) { setTrialBalance(null); return; }
