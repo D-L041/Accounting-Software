@@ -197,3 +197,151 @@ class JournalLine(models.Model):
         if JournalEntry.objects.filter(pk=self.entry_id, posted=True).exists():
             raise ValidationError("Cannot delete lines on a posted journal.")
         return super().delete(*args, **kwargs)
+
+class BankStatement(models.Model):
+    class Status(models.TextChoices):
+        DRAFT = "DRAFT", "Draft"
+        RECONCILED = "RECONCILED", "Reconciled"
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="bank_statements")
+    account = models.ForeignKey(Account, on_delete=models.PROTECT, related_name="bank_statements")
+    period = models.ForeignKey(FinancialPeriod, on_delete=models.PROTECT, related_name="bank_statements")
+    statement_start = models.DateField()
+    statement_end = models.DateField()
+    opening_balance = models.DecimalField(max_digits=14, decimal_places=2)
+    closing_balance = models.DecimalField(max_digits=14, decimal_places=2)
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.DRAFT)
+    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    reconciled_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-statement_end", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["school", "account", "statement_end"],
+                name="unique_bank_statement_end_per_account",
+            ),
+            models.CheckConstraint(
+                condition=Q(statement_end__gte=models.F("statement_start")),
+                name="bank_statement_end_after_start",
+            ),
+        ]
+
+    def clean(self):
+        super().clean()
+        errors = {}
+        if self.account_id and (
+            self.account.school_id != self.school_id
+            or self.account.category != Account.Category.ASSET
+        ):
+            errors["account"] = "Choose an asset account belonging to this school."
+        if self.period_id and self.period.school_id != self.school_id:
+            errors["period"] = "Financial period must belong to this school."
+        if self.statement_start and self.statement_end:
+            if self.statement_end < self.statement_start:
+                errors["statement_end"] = "Statement end must not precede its start."
+            if self.period_id and not (
+                self.period.starts_on <= self.statement_start
+                and self.statement_end <= self.period.ends_on
+            ):
+                errors["statement_start"] = "Statement dates must fall within the selected financial period."
+        if errors:
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        if self.pk and BankStatement.objects.filter(pk=self.pk, status=self.Status.RECONCILED).exists():
+            raise ValidationError("A reconciled bank statement is immutable.")
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    @property
+    def statement_movement(self):
+        return self.lines.aggregate(total=models.Sum("amount"))["total"] or Decimal("0.00")
+
+    @property
+    def calculated_closing_balance(self):
+        return self.opening_balance + self.statement_movement
+
+    @property
+    def is_statement_arithmetic_valid(self):
+        return self.calculated_closing_balance == self.closing_balance
+
+    def reconcile(self, actor=None):
+        with transaction.atomic():
+            statement = BankStatement.objects.select_for_update().get(pk=self.pk)
+            if statement.status != self.Status.DRAFT:
+                raise ValidationError("This bank statement has already been reconciled.")
+            if not statement.lines.exists():
+                raise ValidationError("Import at least one bank statement line before reconciling.")
+            if statement.lines.filter(matched_journal_line__isnull=True).exists():
+                raise ValidationError("Match every bank statement line to a posted ledger transaction first.")
+            if not statement.is_statement_arithmetic_valid:
+                raise ValidationError("Statement opening balance plus movements does not equal its closing balance.")
+            statement.status = self.Status.RECONCILED
+            statement.reconciled_at = timezone.now()
+            statement.save(update_fields=["status", "reconciled_at"])
+            from auditlog.services import record_event
+            record_event(
+                school=statement.school, actor=actor or statement.uploaded_by,
+                action="BANK_STATEMENT_RECONCILED", entity_type="BankStatement",
+                entity_id=statement.pk, summary=f"Reconciled bank statement ending {statement.statement_end}",
+                metadata={"account_id": statement.account_id, "period_id": statement.period_id,
+                          "statement_movement": str(statement.statement_movement)},
+            )
+            self.refresh_from_db()
+            return self
+
+
+class BankStatementLine(models.Model):
+    statement = models.ForeignKey(BankStatement, on_delete=models.CASCADE, related_name="lines")
+    transaction_date = models.DateField()
+    description = models.CharField(max_length=255)
+    reference = models.CharField(max_length=100, blank=True)
+    # Positive values are deposits/credits to the bank; negative values are withdrawals/debits.
+    amount = models.DecimalField(max_digits=14, decimal_places=2)
+    matched_journal_line = models.OneToOneField(
+        JournalLine, null=True, blank=True, on_delete=models.PROTECT,
+        related_name="matched_bank_statement_line",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["transaction_date", "id"]
+        constraints = [
+            models.CheckConstraint(condition=~Q(amount=0), name="bank_statement_line_nonzero"),
+        ]
+
+    def clean(self):
+        super().clean()
+        errors = {}
+        if self.statement_id and not (
+            self.statement.statement_start <= self.transaction_date <= self.statement.statement_end
+        ):
+            errors["transaction_date"] = "Transaction date must fall within the statement dates."
+        if self.matched_journal_line_id:
+            journal_line = self.matched_journal_line
+            if journal_line.account_id != self.statement.account_id:
+                errors["matched_journal_line"] = "Match a transaction posted to this bank account."
+            elif not journal_line.entry.posted:
+                errors["matched_journal_line"] = "Only posted ledger transactions can be matched."
+            else:
+                ledger_amount = journal_line.debit - journal_line.credit
+                if ledger_amount != self.amount:
+                    errors["matched_journal_line"] = "Statement amount must equal the signed ledger movement."
+                if journal_line.entry.entry_date != self.transaction_date:
+                    errors["matched_journal_line"] = "Statement and ledger transaction dates must match."
+        if errors:
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        if self.statement_id and self.statement.status == BankStatement.Status.RECONCILED:
+            raise ValidationError("Lines on a reconciled bank statement are immutable.")
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        if self.statement.status == BankStatement.Status.RECONCILED:
+            raise ValidationError("Lines on a reconciled bank statement cannot be deleted.")
+        return super().delete(*args, **kwargs)
+
