@@ -56,7 +56,7 @@ export default function PayrollPanel({schoolId,currency,periods,accounts,canWrit
   <div className="panel-heading"><div><h2>Staff & payroll</h2><p>Maintain employee records, configure ledger mappings, calculate payroll and post approved runs.</p></div><button className="secondary" onClick={()=>void refresh()}>Refresh</button></div>
   {error&&<div className="error-banner">{error}</div>}
   {canWrite&&<div className="setup-grid">
-   <form className="entry-form" onSubmit={createEmployee}>
+   <form className="entry-panel" onSubmit={createEmployee}>
     <h3>Add employee</h3>
     <label>Employee number<input required value={employee.employee_number} onChange={e=>setEmployee(v=>({...v,employee_number:e.target.value}))}/></label>
     <div className="form-grid"><label>First name<input required value={employee.first_name} onChange={e=>setEmployee(v=>({...v,first_name:e.target.value}))}/></label><label>Last name<input required value={employee.last_name} onChange={e=>setEmployee(v=>({...v,last_name:e.target.value}))}/></label></div>
@@ -65,14 +65,14 @@ export default function PayrollPanel({schoolId,currency,periods,accounts,canWrit
     <label className="check-label"><input type="checkbox" checked={employee.is_resident} onChange={e=>setEmployee(v=>({...v,is_resident:e.target.checked}))}/> Resident individual (eligible for personal relief)</label>
     <button className="primary" disabled={busy}>{busy?"Saving…":"Add employee"}</button>
    </form>
-   <form className="entry-form" onSubmit={saveSettings}>
+   <form className="entry-panel" onSubmit={saveSettings}>
     <h3>Payroll ledger accounts</h3>
     <label>Salary expense<select required value={mapping.salary_expense_account||""} onChange={e=>setMapping(v=>({...v,salary_expense_account:e.target.value}))}><option value="">Select expense account</option>{expenses.map(a=><option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}</select></label>
     {(["net_payable_account","paye_payable_account","nssf_payable_account","shif_payable_account","housing_levy_payable_account"] as const).map((key,i)=><label key={key}>{["Net salaries payable","PAYE payable","NSSF payable","SHIF payable","Housing levy payable"][i]}<select required value={mapping[key]||""} onChange={e=>setMapping(v=>({...v,[key]:e.target.value}))}><option value="">Select liability account</option>{liabilities.map(a=><option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}</select></label>)}
     <button className="primary" disabled={busy||!expenses.length||!liabilities.length}>{settings?"Update account mappings":"Save account mappings"}</button>
    </form>
   </div>}
-  <div className="entry-form">
+  <div className="entry-panel">
    <h3>Calculate monthly payroll</h3>
    <form className="form-grid" onSubmit={createRun}>
     <label>Financial period<select required value={period} onChange={e=>setPeriod(e.target.value)}><option value="">Select period</option>{periods.map(p=><option key={p.id} value={p.id}>{p.name}{p.is_locked?" (locked)":""}</option>)}</select></label>
@@ -81,12 +81,12 @@ export default function PayrollPanel({schoolId,currency,periods,accounts,canWrit
     <button className="primary" disabled={busy||!canWrite||!employees.some(e=>e.is_active)||!period}>{busy?"Calculating…":"Calculate draft payroll"}</button>
    </form>
   </div>
-  <div className="entry-form"><h3>Employees ({employees.length})</h3>
+  <div className="entry-panel"><h3>Employees ({employees.length})</h3>
    <div className="table-wrap"><table><thead><tr><th>Number</th><th>Employee</th><th>Role</th><th>Basic salary</th><th>Cash allowances</th><th>Resident</th><th>Status</th></tr></thead><tbody>
     {employees.map(e=><tr key={e.id}><td>{e.employee_number}</td><td>{e.full_name}</td><td>{e.job_title||"—"}</td><td>{money(e.basic_salary,currency)}</td><td>{money(e.regular_cash_allowances,currency)}</td><td>{e.is_resident?"Yes":"No"}</td><td>{e.is_active?"Active":"Inactive"}</td></tr>)}
    </tbody></table></div>
   </div>
-  <div className="entry-form"><h3>Payroll runs</h3>
+  <div className="entry-panel"><h3>Payroll runs</h3>
    {runs.map(r=><div key={r.id} className="payroll-run">
     <div className="panel-heading"><div><strong>{new Date(r.payroll_month+"T00:00:00").toLocaleDateString("en-KE",{month:"long",year:"numeric"})}</strong><p>{r.employee_count} employees · Gross {money(r.gross_total,currency)} · Net {money(r.net_total,currency)}</p></div><div><span className="status-pill">{r.status}</span>{r.status==="DRAFT"&&canWrite&&<button className="small-action" disabled={busy||!settings} onClick={()=>void postRun(r.id)}>Post payroll</button>}</div></div>
     <div className="table-wrap"><table><thead><tr><th>Employee</th><th>Gross</th><th>PAYE</th><th>NSSF</th><th>SHIF</th><th>Housing levy</th><th>Net pay</th></tr></thead><tbody>
@@ -95,7 +95,7 @@ export default function PayrollPanel({schoolId,currency,periods,accounts,canWrit
    </div>)}
    {!runs.length&&<p className="muted">No payroll runs have been created.</p>}
   </div>
-  <div className="entry-form"><h3>Effective-dated statutory rules currently applied</h3><p className="muted">These values are configuration records, not a substitute for independent payroll review. Check the effective date for the payroll month and confirm each rate against the current official notice before posting.</p>
+  <div className="entry-panel"><h3>Effective-dated statutory rules currently applied</h3><p className="muted">These values are configuration records, not a substitute for independent payroll review. Check the effective date for the payroll month and confirm each rate against the current official notice before posting.</p>
    <div className="table-wrap"><table><thead><tr><th>Rule</th><th>Effective from</th><th>To</th><th>Employee rate</th><th>Employer rate</th><th>Ceiling / fixed amount</th><th>PAYE deduction</th></tr></thead><tbody>
     {rules.map(r=><tr key={r.id}><td>{r.code}</td><td>{r.effective_from}</td><td>{r.effective_to||"Open"}</td><td>{(Number(r.employee_rate)*100).toFixed(3)}%</td><td>{(Number(r.employer_rate)*100).toFixed(3)}%</td><td>{r.ceiling?money(r.ceiling,currency):r.fixed_employee?money(r.fixed_employee,currency):r.minimum_employee?money(r.minimum_employee,currency):"—"}</td><td>{r.deductible_for_paye?"Yes":"No"}</td></tr>)}
    </tbody></table></div>
