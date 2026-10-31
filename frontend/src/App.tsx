@@ -273,6 +273,7 @@ export default function App() {
 
   async function initiateParentStkPush(event:FormEvent) {
     event.preventDefault();
+    if(!school) { setError("Select a school workspace before initiating a payment."); return; }
     if(!navigator.onLine) { setError("STK Push requires an active internet connection."); return; }
     setBusy(true); clearMessages();
     try {
