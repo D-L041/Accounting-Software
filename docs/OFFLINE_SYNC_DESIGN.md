@@ -2,12 +2,11 @@
 
 ## Current implementation — controlled pilot stage
 
-The frontend is installable as a progressive web app and its service worker caches the application shell and static assets only. An encrypted IndexedDB outbox now supports **expense draft capture** while disconnected, using AES-GCM and a non-extractable browser key scoped to the signed-in user and school. The UI shows queued drafts, offers manual synchronisation when online and allows explicit local discard. The outbox never stores passwords, session cookies, CSRF tokens, Daraja secrets or API response bodies.
+The frontend is installable as a progressive web app and its service worker caches the application shell and static assets only. An encrypted IndexedDB outbox supports **expense and purchase-order draft capture** while disconnected, using AES-GCM and a non-extractable browser key scoped to the signed-in user and school. The shared queue shows pending and needs-review states, offers manual synchronisation when online and allows explicit local discard. It never stores passwords, session cookies, CSRF tokens, Daraja secrets or API response bodies.
 
-When connectivity returns, the client sends each expense draft to the authenticated school-scoped sync endpoint. The server validates membership, write role, school-owned category/period/supplier references and the expense serializer; it stores an idempotency receipt and creates a DRAFT expense only. Repeated deliveries return the original outcome, and reusing a key with different data returns a conflict. The endpoint cannot post a journal. Synced drafts must be reviewed and posted online through the normal expense workflow.
+When connectivity returns, the client sends each typed draft to the authenticated school-scoped sync endpoint. The server validates the active membership and write role, applies a strict resource-specific field allow-list, validates school-owned references and stores an idempotency receipt. Expense drafts are created as DRAFT expenses; purchase orders are created as DRAFT orders with lines. Neither path posts a journal, settles a bill, submits an order for approval or commits funds. Repeated deliveries return the original outcome; reusing a key with different content returns a conflict. Client 4xx responses are retained for review, while transient network/server errors remain queued.
 
-This is not yet full offline operation across all modules. Reference lists must already be loaded in the current session before disconnection; authenticated API responses and pupil, employee, payroll and ledger data are not cached. Offline capture beyond expense drafts, richer conflict resolution and recovery, device-loss recovery and independent offline security testing remain outstanding.
-
+This is not yet full offline operation across all modules. Reference lists must already be loaded in the current session before disconnection; authenticated API responses and pupil, employee, payroll and ledger data are not cached. Field-level server/local comparison, guided replacement-draft resolution, cross-device recovery, device-loss recovery and independent offline security testing remain outstanding.
 This is intentional: cached financial or pupil records on a shared school device create confidentiality and data-protection risks, and silently replaying a payment or journal could duplicate accounting entries.
 
 ## Approved offline boundary
@@ -52,7 +51,7 @@ Remain online-only:
 
 ## Conflict resolution
 
-The user must compare the local draft with the current server record and explicitly choose to keep the server version, discard the local draft or create a new draft from the local values. The server must validate any replacement as a new operation. There is no automatic merge for financial amounts, account mappings, dates, student identifiers or supplier references.
+Full resolution must allow the user to compare local and server records and explicitly keep the server version, discard the local draft or create a new draft from the local values. The current UI retains 4xx-rejected items in a needs-review state and supports discard, but does not yet provide the comparison/replacement workflow. The server must validate any replacement as a new operation. There is no automatic merge for financial amounts, account mappings, dates, student identifiers or supplier references.
 
 ## Required tests before enabling
 
