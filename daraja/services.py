@@ -212,7 +212,7 @@ def reconcile_c2b_notification(*, notification_id, school, user, invoice_id, con
         raise ValidationError("Your school role cannot reconcile M-Pesa payments.")
     if confirm_statement_match is not True:
         raise ValidationError("Confirm that the transaction has been independently matched to the Safaricom statement.")
-    notification = C2BNotification.objects.select_for_update().select_related("matched_invoice").get(pk=notification_id)
+    notification = C2BNotification.objects.select_for_update(of=("self",)).select_related("matched_invoice").get(pk=notification_id)
     if notification.status == C2BNotification.Status.POSTED:
         if notification.matched_invoice_id == invoice_id and notification.matched_invoice.school_id == school.id:
             return notification
