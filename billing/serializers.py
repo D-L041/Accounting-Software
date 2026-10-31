@@ -1,5 +1,7 @@
 from decimal import Decimal
 
+from django.core.exceptions import ValidationError as DjangoValidationError
+
 from rest_framework import serializers
 
 from accounts.models import Student
@@ -285,7 +287,7 @@ class CreditNoteSerializer(serializers.ModelSerializer):
                     raise serializers.ValidationError({"lines": "Add at least one credit note line."})
                 for line in lines:
                     CreditNoteLine.objects.create(credit_note=note, **line)
-            except __import__("django.core.exceptions", fromlist=["ValidationError"]).ValidationError as exc:
+            except DjangoValidationError as exc:
                 raise serializers.ValidationError(getattr(exc, "message_dict", None) or exc.messages) from exc
         return note
 
