@@ -1,0 +1,34 @@
+# Low-cost pilot blueprint. Review resource sizes and monthly charges before creating services.
+services:
+  - type: web
+    name: precious-schoolbooks
+    runtime: docker
+    plan: 0.5c-512mb
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health/
+    preDeployCommand: python manage.py migrate --noinput
+    autoDeployTrigger: "off"
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"
+      - key: ALLOWED_HOSTS
+        value: precious-schoolbooks.onrender.com
+      - key: DATABASE_URL
+        fromDatabase:
+          name: precious-schoolbooks-db
+          property: connectionString
+      - key: DARAJA_ENV
+        value: sandbox
+      - key: DARAJA_CALLBACK_URL
+        value: https://precious-schoolbooks.onrender.com/api/daraja/callbacks/stk/
+
+databases:
+  - name: precious-schoolbooks-db
+    databaseName: precious_schoolbooks
+    user: precious_schoolbooks
+    plan: 256mb
+    region: frankfurt

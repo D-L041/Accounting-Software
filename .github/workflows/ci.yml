@@ -4,6 +4,13 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   backend:
     runs-on: ubuntu-latest
@@ -19,8 +26,8 @@ jobs:
           --health-cmd "pg_isready -U postgres -d ststephen"
           --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
       - run: pip install -r requirements.txt
@@ -29,10 +36,27 @@ jobs:
           SECRET_KEY: ci-only-not-a-secret
           DEBUG: "True"
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/ststephen
+      - run: python manage.py makemigrations --check --dry-run
+        env:
+          SECRET_KEY: ci-only-not-a-secret
+          DEBUG: "True"
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/ststephen
       - run: python manage.py migrate --noinput
         env:
           SECRET_KEY: ci-only-not-a-secret
           DEBUG: "True"
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/ststephen
+      - name: Verify PostgreSQL backup and restore in an isolated CI database
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+          pg_dump --format=custom --no-owner --no-privileges --file=/tmp/precious-schoolbooks-ci.dump "$DATABASE_URL"
+          createdb --host=localhost --username=postgres precious_restore_test
+          pg_restore --host=localhost --username=postgres --dbname=precious_restore_test --no-owner --no-privileges /tmp/precious-schoolbooks-ci.dump
+          migration_count=$(psql "postgres://postgres:postgres@localhost:5432/precious_restore_test" --tuples-only --no-align --command="SELECT COUNT(*) FROM django_migrations")
+          test "$migration_count" -gt 0
+        env:
+          PGPASSWORD: postgres
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/ststephen
       - run: pytest
         env:
@@ -45,9 +69,37 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
       - run: npm install
       - run: npm run build
+
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Build production API image
+        run: docker build --tag precious-schoolbooks-api:ci .
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Audit Python dependencies
+        run: |
+          python -m pip install --upgrade pip pip-audit
+          pip-audit -r requirements.txt
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - name: Resolve frontend lockfile and audit npm dependencies
+        working-directory: frontend
+        run: |
+          npm install --package-lock-only --ignore-scripts
+          npm ci --ignore-scripts
+          npm audit --audit-level=high
