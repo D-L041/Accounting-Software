@@ -69,7 +69,8 @@ export default function App() {
   const [menu,setMenu] = useState(false);
   const [loading,setLoading] = useState(true);
   const [isOnline,setIsOnline] = useState(navigator.onLine);
-  const [offlineDrafts,setOfflineDrafts] = useState<{idempotencyKey:string;createdAt:string;resourceType?:string;state:string;lastError?:string}[]>([]);\n  const [inspectedDraft,setInspectedDraft] = useState<{idempotencyKey:string;resourceType:string;payload:Row}|null>(null);
+  const [offlineDrafts,setOfflineDrafts] = useState<{idempotencyKey:string;createdAt:string;resourceType?:string;state:string;lastError?:string}[]>([]);
+  const [inspectedDraft,setInspectedDraft] = useState<{idempotencyKey:string;resourceType:string;payload:Row}|null>(null);
   const [busy,setBusy] = useState(false);
   const [error,setError] = useState("");
   const [success,setSuccess] = useState("");
