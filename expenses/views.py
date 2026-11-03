@@ -267,6 +267,12 @@ class PurchaseOrderViewSet(SchoolExpensesViewSet):
                 steps.setdefault(rule.step_number, rule.approver_role)
             if not steps:
                 steps = {1: "OWNER"}
+            expected_steps = list(range(1, max(steps) + 1))
+            if sorted(steps) != expected_steps:
+                raise ValidationError(
+                    "Active approval rules for this order must include every stage from 1 through the final stage. "
+                    "Ask a school owner or administrator to correct the approval configuration."
+                )
             for step, role in sorted(steps.items()):
                 PurchaseOrderApproval.objects.create(
                     purchase_order=order, step_number=step, approver_role=role
