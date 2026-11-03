@@ -56,7 +56,8 @@ Record the release commit, environment, date, test operator, school representati
 1. Create a draft purchase order with at least two line items and verify quantity × unit cost totals.
 2. Configure school-specific approval thresholds, including an additional approval step above a higher KES threshold.
 3. Submit a draft order and verify the configured approval steps are created in sequence.
-4. Confirm the creator cannot approve their own order and a user with the wrong role cannot approve the current step.
+4. Configure a deliberately gapped approval rule set (for example, stage 2 without stage 1) and confirm submission is rejected while the order remains DRAFT; correct the configuration before continuing.
+5. Confirm the creator cannot approve their own order and a user with the wrong role cannot approve the current step.
 5. Approve each step using the required roles and verify the order becomes APPROVED only after the final step.
 6. Confirm submitted order details and lines are immutable, and purchase orders do not create journals or supplier payments.
 7. Confirm a supplier or financial period belonging to another school is rejected.
@@ -120,7 +121,8 @@ Use synthetic employees and compare the output independently with a Kenyan payro
 6. Deliver the same idempotency key twice for each draft type and confirm the second delivery returns the original result without creating duplicates.
 7. Reuse an idempotency key with changed payload data and confirm HTTP 409; substitute a supplier or period from another school and confirm rejection.
 8. Confirm viewer role, revoked membership and inactive school cannot synchronise drafts; confirm server 4xx rejections remain in needs-review state and are not silently deleted.
-9. Confirm the user can discard a pending local draft, and that signing out warns about unsynchronised drafts.
+9. Use Inspect on a queued or needs-review draft and confirm the decrypted payload is shown only after explicit user action, remains local, and does not post or modify the record; close the detail view and confirm it is hidden.
+10. Confirm the user can discard a pending local draft, and that signing out warns about unsynchronised drafts.
 10. Confirm invoice issue, payment receipt, refund, payroll approval, bank reconciliation, M-Pesa and journal posting remain blocked offline.
 11. Run the automated Python/npm dependency audits, PostgreSQL CI backup/restore smoke test and tenant-isolation tests.
 12. Complete independent penetration testing, authorization review, witnessed production backup restore and incident-response exercise.
