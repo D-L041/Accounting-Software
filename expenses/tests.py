@@ -304,6 +304,23 @@ class PurchaseOrderApprovalTests(TestCase):
         self.assertEqual(final.status_code, 200, final.data)
         self.assertEqual(final.data["status"], PurchaseOrder.Status.APPROVED)
 
+    def test_purchase_order_submission_rejects_gapped_approval_stages(self):
+        from expenses.models import ProcurementApprovalRule, PurchaseOrder
+        base = f"/api/schools/{self.school.pk}/expenses/"
+        ProcurementApprovalRule.objects.create(
+            school=self.school, min_amount="0.00", step_number=2, approver_role="OWNER"
+        )
+        created = self.client.post(base + "purchase-orders/", {
+            "supplier": self.supplier.pk, "period": self.period.pk,
+            "order_date": "2026-05-01", "description": "Test missing approval stage",
+            "lines": [{"description": "Workbooks", "quantity": "1", "unit_cost": "100.00"}],
+        }, format="json")
+        self.assertEqual(created.status_code, 201, created.data)
+        order_id = created.data["id"]
+        submitted = self.client.post(f"{base}purchase-orders/{order_id}/submit/", {}, format="json")
+        self.assertEqual(submitted.status_code, 400, submitted.data)
+        self.assertEqual(PurchaseOrder.objects.get(pk=order_id).status, PurchaseOrder.Status.DRAFT)
+
     def test_purchase_order_rejects_cross_school_supplier(self):
         from expenses.models import Supplier
         other = School.objects.create(name="Other School", code="other-procurement")
