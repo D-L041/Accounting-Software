@@ -121,6 +121,20 @@ export async function listExpenseDrafts(userId: number, schoolId: number) {
   } finally { db.close(); }
 }
 
+export async function inspectOfflineDraft(userId: number, schoolId: number, idempotencyKey: string): Promise<{ resourceType: "expense" | "purchase_order"; payload: OfflineExpensePayload | OfflinePurchaseOrderPayload } | null> {
+  const db = await openDatabase();
+  try {
+    const scope = scopeFor(userId, schoolId);
+    const draft = await requestResult(db.transaction("drafts", "readonly").objectStore("drafts").get(idempotencyKey)) as StoredDraft | undefined;
+    if (!draft || draft.scope !== scope || draft.userId !== userId || draft.schoolId !== schoolId) return null;
+    const saved = await requestResult(db.transaction("keys", "readonly").objectStore("keys").get(scope)) as StoredKey | undefined;
+    if (!saved?.key) throw new Error("The local encryption key is missing; the draft cannot be safely inspected.");
+    const plaintext = await crypto.subtle.decrypt({ name: "AES-GCM", iv: new Uint8Array(draft.iv) }, saved.key, draft.ciphertext);
+    const payload = JSON.parse(new TextDecoder().decode(plaintext)) as OfflineExpensePayload | OfflinePurchaseOrderPayload;
+    return { resourceType: draft.resourceType || "expense", payload };
+  } finally { db.close(); }
+}
+
 export async function syncExpenseDrafts(
   userId: number,
   schoolId: number,
