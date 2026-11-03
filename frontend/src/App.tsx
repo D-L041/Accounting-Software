@@ -14,7 +14,7 @@ import PayrollPanel from "./PayrollPanel";
 import ProcurementPanel from "./ProcurementPanel";
 import BudgetPanel from "./BudgetPanel";
 import { schoolToday } from "./formatters";
-import { discardExpenseDraft, listExpenseDrafts, queueExpenseDraft, syncExpenseDrafts, type OfflineExpensePayload } from "./offlineOutbox";
+import { discardExpenseDraft, inspectOfflineDraft, listExpenseDrafts, queueExpenseDraft, syncExpenseDrafts, type OfflineExpensePayload } from "./offlineOutbox";
 
 type Row = Record<string, any>;
 const nav = [
@@ -69,7 +69,7 @@ export default function App() {
   const [menu,setMenu] = useState(false);
   const [loading,setLoading] = useState(true);
   const [isOnline,setIsOnline] = useState(navigator.onLine);
-  const [offlineDrafts,setOfflineDrafts] = useState<{idempotencyKey:string;createdAt:string;resourceType?:string;state:string;lastError?:string}[]>([]);
+  const [offlineDrafts,setOfflineDrafts] = useState<{idempotencyKey:string;createdAt:string;resourceType?:string;state:string;lastError?:string}[]>([]);\n  const [inspectedDraft,setInspectedDraft] = useState<{idempotencyKey:string;resourceType:string;payload:Row}|null>(null);
   const [busy,setBusy] = useState(false);
   const [error,setError] = useState("");
   const [success,setSuccess] = useState("");
@@ -207,6 +207,16 @@ export default function App() {
     api<Row>("/api/schools/" + school.id + "/ledger/reports/" + route + "/?period=" + periodId)
       .then(setTrialBalance).catch(e=>setError(errorText(e)));
   },[active,school,periods,reportPeriod,reportType]);
+
+  async function inspectOfflineItem(idempotencyKey:string) {
+    if (!user || !school) return;
+    setInspectedDraft(null); clearMessages();
+    try {
+      const result = await inspectOfflineDraft(user.id, school.id, idempotencyKey);
+      if (!result) { setError("This draft is no longer available in the current school workspace."); return; }
+      setInspectedDraft({idempotencyKey,resourceType:result.resourceType,payload:result.payload as unknown as Row});
+    } catch (e) { setError(errorText(e)); }
+  }
 
   async function discardOfflineItem(idempotencyKey:string) {
     if (!user || !school) return;
@@ -490,7 +500,8 @@ export default function App() {
         <div className="welcome"><div><div className="eyebrow">SCHOOL FINANCE WORKSPACE</div><h1>{heading}</h1><p>{school.name} · Kenyan Shillings (KES)</p></div><div className="period">Signed in as <strong>{user.username}</strong></div></div>
          {!isOnline&&<div className="error-banner"><AlertCircle size={16}/>Offline mode: previously loaded reference lists remain available in this session. You can save encrypted expense and purchase-order drafts; student records, payments, payroll and ledger postings remain online-only.</div>}
          {offlineDrafts.length>0&&<div className="notice"><ClipboardList size={18}/><div><strong>{offlineDrafts.length} offline draft(s) waiting</strong><span>{offlineDrafts.filter(x=>x.state==="needs_attention").length} need review. Drafts are not posted until reviewed online.</span></div><button className="small-action" disabled={!isOnline} onClick={()=>void syncOfflineQueue()}>Sync now</button></div>}
-         {offlineDrafts.length>0&&<div className="entry-panel"><div className="panel-heading"><div><h2>Offline draft queue</h2><p>These records are encrypted on this device and have not affected the ledger.</p></div></div><div className="table-wrap"><table><thead><tr><th>Captured</th><th>Status</th><th>Details</th><th>Action</th></tr></thead><tbody>{offlineDrafts.map(item=><tr key={item.idempotencyKey}><td>{new Date(item.createdAt).toLocaleString()}</td><td>{item.state==="needs_attention"?"Needs review":"Waiting to sync"}</td><td>{item.lastError||`${item.resourceType==="purchase_order"?"Purchase order":"Expense"} draft — pending server validation`}</td><td><button className="small-action" onClick={()=>void discardOfflineItem(item.idempotencyKey)}>Discard</button></td></tr>)}</tbody></table></div></div>}
+         {offlineDrafts.length>0&&<div className="entry-panel"><div className="panel-heading"><div><h2>Offline draft queue</h2><p>These records are encrypted on this device and have not affected the ledger.</p></div></div><div className="table-wrap"><table><thead><tr><th>Captured</th><th>Status</th><th>Details</th><th>Action</th></tr></thead><tbody>{offlineDrafts.map(item=><tr key={item.idempotencyKey}><td>{new Date(item.createdAt).toLocaleString()}</td><td>{item.state==="needs_attention"?"Needs review":"Waiting to sync"}</td><td>{item.lastError||`${item.resourceType==="purchase_order"?"Purchase order":"Expense"} draft — pending server validation`}</td><td><button className="small-action" onClick={()=>void inspectOfflineItem(item.idempotencyKey)}>Inspect</button> <button className="small-action" onClick={()=>void discardOfflineItem(item.idempotencyKey)}>Discard</button></td></tr>)}</tbody></table></div></div>}
+        {inspectedDraft&&<div className="entry-panel"><div className="panel-heading"><div><h2>Local draft details</h2><p>Decrypted only after you selected Inspect; visible only in this signed-in school session. This is a local draft, not a posted transaction.</p></div><button className="small-action" onClick={()=>setInspectedDraft(null)}>Close</button></div><pre style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere",maxHeight:320,overflow:"auto"}}>{JSON.stringify(inspectedDraft.payload,null,2)}</pre><p className="muted">Review the fields before syncing. If the server rejected this draft, correct the source data online and create a fresh draft if needed. No automatic merge or replacement is performed.</p></div>}
         {error&&<div className="error-banner"><AlertCircle size={16}/>{error}</div>}
         {success&&<div className="success-banner"><CheckCircle2 size={16}/>{success}</div>}
         {active==="Overview"&&<div className="metric-grid">
